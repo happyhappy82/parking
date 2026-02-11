@@ -404,6 +404,8 @@ const review = generateReview(item, dong!, sigungu!);
 // ─── 외부 지도 링크 ───
 const naverUrl = `https://map.naver.com/p/search/${encodeURIComponent(item.address)}`;
 const kakaoUrl = `https://map.kakao.com/link/map/${encodeURIComponent(displayName)},${item.lat},${item.lng}`;
+const tmapUrl = `https://tmap.life/route?goalname=${encodeURIComponent(displayName)}&goaly=${item.lat}&goalx=${item.lng}`;
+const googleMapUrl = `https://www.google.com/maps/search/?api=1&query=${item.lat},${item.lng}&query_place_id=${encodeURIComponent(displayName)}`;
 
 // ─── 시간 포맷 ───
 function formatTime(open: string, close: string): string {
@@ -487,16 +489,55 @@ const images: string[] = item.images || [];
   </section>
 
   <!-- ━━━ 외부 지도 링크 ━━━ -->
-  <div class="flex gap-3 mb-10">
-    <a href={naverUrl} target="_blank" rel="noopener" class="flex-1 flex items-center justify-center gap-2 px-4 py-3 text-sm font-bold text-green-700 bg-green-50 rounded-xl hover:bg-green-100 transition-colors border border-green-200">
-      <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
-      네이버지도에서 보기
+  <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-10">
+    <a href={naverUrl} target="_blank" rel="noopener" class="flex items-center justify-center gap-2 px-3 py-3 text-sm font-bold text-green-700 bg-green-50 rounded-xl hover:bg-green-100 transition-colors border border-green-200">
+      <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+      네이버지도
     </a>
-    <a href={kakaoUrl} target="_blank" rel="noopener" class="flex-1 flex items-center justify-center gap-2 px-4 py-3 text-sm font-bold text-yellow-800 bg-yellow-50 rounded-xl hover:bg-yellow-100 transition-colors border border-yellow-200">
-      <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
-      카카오맵에서 보기
+    <a href={kakaoUrl} target="_blank" rel="noopener" class="flex items-center justify-center gap-2 px-3 py-3 text-sm font-bold text-yellow-800 bg-yellow-50 rounded-xl hover:bg-yellow-100 transition-colors border border-yellow-200">
+      <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+      카카오맵
+    </a>
+    <a href={tmapUrl} target="_blank" rel="noopener" class="flex items-center justify-center gap-2 px-3 py-3 text-sm font-bold text-red-700 bg-red-50 rounded-xl hover:bg-red-100 transition-colors border border-red-200">
+      <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l5.447 2.724A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"/></svg>
+      티맵
+    </a>
+    <a href={googleMapUrl} target="_blank" rel="noopener" class="flex items-center justify-center gap-2 px-3 py-3 text-sm font-bold text-blue-700 bg-blue-50 rounded-xl hover:bg-blue-100 transition-colors border border-blue-200">
+      <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+      구글맵
     </a>
   </div>
+
+  <!-- ━━━ 현장 사진 ━━━ -->
+  <section class="mb-10">
+    <div class="flex items-center gap-3 mb-4">
+      <div class="w-9 h-9 bg-blue-500 rounded-full flex items-center justify-center shrink-0">
+        <svg class="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+      </div>
+      <h2 class="text-lg font-bold text-gray-900">현장 사진</h2>
+    </div>
+    {images.length > 0 ? (
+      <div class="grid grid-cols-2 md:grid-cols-3 gap-3">
+        {images.map((src, i) => (
+          <div class="relative aspect-[4/3] rounded-xl overflow-hidden bg-gray-100">
+            <img src={src} alt={`${displayName} 현장 사진 ${i + 1}`} class="w-full h-full object-cover" loading="lazy" />
+          </div>
+        ))}
+      </div>
+    ) : (
+      <div class="border-2 border-dashed border-gray-200 rounded-2xl p-8 text-center">
+        <div class="flex flex-col items-center gap-3">
+          <div class="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center">
+            <svg class="w-8 h-8 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+          </div>
+          <div>
+            <p class="text-sm font-semibold text-gray-400">파킹맵 에디터가 직접 촬영한 사진이 곧 업로드됩니다</p>
+            <p class="text-xs text-gray-300 mt-1">입구, 주차 공간, 요금표 등 실제 현장 사진을 제공할 예정입니다</p>
+          </div>
+        </div>
+      </div>
+    )}
+  </section>
 
   <!-- ━━━ 파킹맵 에디터 리뷰 ━━━ -->
   <section class="border border-emerald-200 bg-gradient-to-br from-emerald-50/50 to-white rounded-2xl p-6 mb-10">
