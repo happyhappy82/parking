@@ -3,3 +3,4 @@ User-agent: *
 Allow: /
 
 Sitemap: https://parkingmap.kr/sitemap-index.xml
+Sitemap: https://parkingmap.kr/sitemap.xml
