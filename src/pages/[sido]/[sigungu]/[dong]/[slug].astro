@@ -160,7 +160,7 @@ const parkingSchema = {
 };
 
 // ─── FAQ 생성 ───
-function generateFAQ(lot: any, dongName: string, sigunguName: string) {
+function generateFAQ(lot: any, dongName: string, sigunguName: string, nearbyLots: any[] = []) {
   const faqs: { q: string; a: string }[] = [];
   const name = lot.name;
 
@@ -218,10 +218,70 @@ function generateFAQ(lot: any, dongName: string, sigunguName: string) {
     });
   }
 
+  // 주말 운영 FAQ
+  if (lot.weekendOpen && lot.weekendClose) {
+    const weClose = lot.weekendClose === '00:00' ? '23:59' : lot.weekendClose;
+    const isWeekend24 = lot.weekendOpen === '00:00' && (lot.weekendClose === '00:00' || lot.weekendClose === '23:59');
+    faqs.push({
+      q: `${name} 주차장 주말에도 이용할 수 있나요?`,
+      a: isWeekend24
+        ? `네, ${name} 주차장은 주말(토·일)에도 24시간 운영합니다. 주말 나들이나 쇼핑 시에도 편하게 이용하실 수 있습니다.`
+        : `네, ${name} 주차장은 주말에도 ${lot.weekendOpen}~${weClose}에 운영합니다.`,
+    });
+  }
+
+  // 공휴일 운영 FAQ
+  if (lot.holidayOpen && lot.holidayClose) {
+    const hClose = lot.holidayClose === '00:00' ? '23:59' : lot.holidayClose;
+    const isHoliday24 = lot.holidayOpen === '00:00' && (lot.holidayClose === '00:00' || lot.holidayClose === '23:59');
+    faqs.push({
+      q: `${name} 주차장은 공휴일에도 운영하나요?`,
+      a: isHoliday24
+        ? `네, ${name} 주차장은 공휴일에도 24시간 정상 운영합니다.${lot.operatingDays ? ` 운영일: ${lot.operatingDays}.` : ''} 연휴 기간에도 이용 가능합니다.`
+        : `네, ${name} 주차장은 공휴일에도 ${lot.holidayOpen}~${hClose}에 운영합니다.`,
+    });
+  }
+
+  // 네비게이션 검색 FAQ
+  faqs.push({
+    q: `${name} 주차장은 네비게이션에 뭐라고 검색하면 되나요?`,
+    a: `"${name}" 또는 도로명 주소 "${lot.roadAddress || lot.address}"로 검색하시면 정확히 안내됩니다. 네이버지도, 카카오맵, 티맵 모두 검색 가능합니다.`,
+  });
+
+  // 만차 시 대안 FAQ
+  if (nearbyLots && nearbyLots.length > 0) {
+    const altList = nearbyLots.slice(0, 3).map((n: any, i: number) =>
+      `${i + 1}) ${n.name} (${n.totalSpaces ? n.totalSpaces + '면' : ''}${n.isFree ? ', 무료' : ''})`
+    ).join(' ');
+    faqs.push({
+      q: `${name} 주차장이 만차일 때 근처 대안 주차장은?`,
+      a: `${dongName} 인근 대안 주차장: ${altList}. 파킹맵에서 ${sigunguName} ${dongName} 주변 주차장을 비교해보세요.`,
+    });
+  }
+
+  // 높이제한 FAQ (데이터 있을 때만)
+  if (lot.heightLimit) {
+    faqs.push({
+      q: `${name} 주차장 높이제한이 있나요?`,
+      a: `${name} 주차장의 높이제한은 ${lot.heightLimit}m입니다. ${lot.heightLimit >= 2.1 ? '일반 SUV(싼타페, 쏘렌토 등)는 주차 가능합니다.' : 'SUV 차량은 주의가 필요합니다.'} ${lot.heightLimit >= 2.3 ? '대형 SUV(팰리세이드 등)도 주차 가능합니다.' : '대형 SUV는 사전 확인을 권장합니다.'}`,
+    });
+  }
+
+  // 전기차 충전 FAQ (데이터 있을 때만)
+  if (lot.evCharger) {
+    const ev = lot.evCharger;
+    faqs.push({
+      q: `${name} 주차장에서 전기차 충전이 가능한가요?`,
+      a: (ev.fast || ev.slow)
+        ? `네, ${name} 주차장에는 ${ev.fast ? `급속충전기 ${ev.fast}기` : ''}${ev.fast && ev.slow ? ', ' : ''}${ev.slow ? `완속충전기 ${ev.slow}기` : ''}가 설치되어 있습니다.`
+        : `현재 ${name} 주차장에는 전기차 충전 시설이 없습니다.`,
+    });
+  }
+
   return faqs;
 }
 
-const faqs = generateFAQ(item, dong!, sigungu!);
+const faqs = generateFAQ(item, dong!, sigungu!, nearbyItems);
 
 // Schema.org: FAQPage
 const faqSchema = faqs.length > 0 ? {
@@ -254,6 +314,23 @@ function calcScore(lot: any): number {
 }
 
 const score = calcScore(item);
+
+// ─── Schema.org: Review ───
+const reviewSchema = {
+  "@context": "https://schema.org",
+  "@type": "Review",
+  "author": {
+    "@type": "Organization",
+    "name": "파킹맵",
+  },
+  "datePublished": item.lastVerified || item.updatedAt || "2026-02-11",
+  "reviewRating": {
+    "@type": "Rating",
+    "ratingValue": String(score),
+    "bestRating": "10",
+  },
+  "reviewBody": `${sigungu} ${dong}에 위치한 ${item.type} 주차장. ${item.totalSpaces ? item.totalSpaces + '면 규모.' : ''} ${is24h ? '24시간 운영.' : ''} ${item.isFree ? '무료 주차장.' : feeLabel + '.'}`,
+};
 
 function scoreLabel(s: number): string {
   if (s >= 9.0) return '최고';
@@ -427,6 +504,7 @@ const images: string[] = item.images || [];
     <Fragment set:html={`<script src="https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId=${naverClientId}"></script>`} />
     <script type="application/ld+json" set:html={JSON.stringify(parkingSchema)} />
     {faqSchema && <script type="application/ld+json" set:html={JSON.stringify(faqSchema)} />}
+    <script type="application/ld+json" set:html={JSON.stringify(reviewSchema)} />
   </Fragment>
 
   <Header />
@@ -628,6 +706,55 @@ const images: string[] = item.images || [];
     </dl>
   </section>
 
+  <!-- ━━━ 시설 상세 정보 (현장 확인) ━━━ -->
+  <section class="border border-gray-200 rounded-2xl p-5 mb-4">
+    <h2 class="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+      <svg class="w-5 h-5 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>
+      시설 상세 정보
+    </h2>
+    <dl class="grid grid-cols-1 sm:grid-cols-2 gap-y-3 gap-x-6">
+      <div class="flex gap-3">
+        <dt class="text-sm text-gray-400 w-24 shrink-0">주차장 구조</dt>
+        <dd class="text-sm text-gray-900 font-medium">{item.structure || item.category || '현장 확인 예정'}</dd>
+      </div>
+      <div class="flex gap-3">
+        <dt class="text-sm text-gray-400 w-24 shrink-0">높이제한</dt>
+        <dd class="text-sm text-gray-900 font-medium">{item.heightLimit ? `${item.heightLimit}m` : '현장 확인 예정'}</dd>
+      </div>
+      <div class="flex gap-3">
+        <dt class="text-sm text-gray-400 w-24 shrink-0">일일최대요금</dt>
+        <dd class="text-sm text-gray-900 font-medium">{item.dailyMax ? `${item.dailyMax.toLocaleString()}원` : '현장 확인 예정'}</dd>
+      </div>
+      <div class="flex gap-3">
+        <dt class="text-sm text-gray-400 w-24 shrink-0">결제방법</dt>
+        <dd class="text-sm text-gray-900 font-medium">{item.paymentMethods || '현장 확인 예정'}</dd>
+      </div>
+      <div class="flex gap-3">
+        <dt class="text-sm text-gray-400 w-24 shrink-0">장애인 주차면</dt>
+        <dd class="text-sm text-gray-900 font-medium">{item.disabledSpaces ? `${item.disabledSpaces}면` : '현장 확인 예정'}</dd>
+      </div>
+      <div class="flex gap-3">
+        <dt class="text-sm text-gray-400 w-24 shrink-0">전기차 충전</dt>
+        <dd class="text-sm text-gray-900 font-medium">
+          {item.evCharger
+            ? `${item.evCharger.fast ? `급속 ${item.evCharger.fast}기` : ''}${item.evCharger.fast && item.evCharger.slow ? ' / ' : ''}${item.evCharger.slow ? `완속 ${item.evCharger.slow}기` : ''}`
+            : '현장 확인 예정'}
+        </dd>
+      </div>
+      <div class="flex gap-3">
+        <dt class="text-sm text-gray-400 w-24 shrink-0">CCTV</dt>
+        <dd class="text-sm text-gray-900 font-medium">{item.cctv ? `${item.cctv}대` : '현장 확인 예정'}</dd>
+      </div>
+      {item.stationConnection && (
+        <div class="flex gap-3">
+          <dt class="text-sm text-gray-400 w-24 shrink-0">역 연결</dt>
+          <dd class="text-sm text-gray-900 font-medium">{item.stationConnection}</dd>
+        </div>
+      )}
+    </dl>
+    <p class="text-xs text-gray-400 mt-4 border-t border-gray-100 pt-3">파킹맵 에디터가 현장 방문 후 확인·업데이트 중입니다. 일부 정보는 아직 수집 전일 수 있습니다.</p>
+  </section>
+
   <!-- ━━━ 운영 시간 ━━━ -->
   <section class="border border-gray-200 rounded-2xl p-5 mb-4">
     <h2 class="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
@@ -714,6 +841,30 @@ const images: string[] = item.images || [];
       </div>
     )}
   </section>
+
+  <!-- ━━━ 주변 시설 도보 접근 ━━━ -->
+  {item.nearbyPOIs && item.nearbyPOIs.length > 0 && (
+    <section class="mb-10">
+      <h2 class="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+        <svg class="w-5 h-5 text-cyan-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg>
+        주차 후 도보 접근 가능한 주요 시설
+      </h2>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        {item.nearbyPOIs.map((poi: any) => (
+          <div class="flex items-center gap-3 p-3 bg-gray-50 rounded-xl">
+            <div class="w-10 h-10 bg-cyan-100 rounded-full flex items-center justify-center shrink-0">
+              <span class="text-cyan-600 text-sm font-bold">{poi.walkMin || '?'}분</span>
+            </div>
+            <div>
+              <p class="text-sm font-semibold text-gray-900">{poi.name}</p>
+              <p class="text-xs text-gray-400">{poi.category || ''}{poi.distance ? ` · ${poi.distance}` : ''}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+      <p class="text-xs text-gray-400 mt-3">도보 시간은 직선거리 기준 예상치이며, 실제 경로에 따라 다를 수 있습니다.</p>
+    </section>
+  )}
 
   <!-- ━━━ 자주 묻는 질문 (FAQ) ━━━ -->
   {faqs.length > 0 && (
@@ -845,10 +996,46 @@ const images: string[] = item.images || [];
     )}
   </section>
 
-  <!-- ━━━ 데이터 출처 ━━━ -->
-  <footer class="p-4 bg-gray-50 rounded-xl text-xs text-gray-400 text-center">
-    <p>데이터 출처: <a href="https://data.go.kr" target="_blank" rel="noopener" class="underline hover:text-gray-500">공공데이터포털 (data.go.kr)</a> - 전국주차장정보 표준데이터</p>
-    <p class="mt-1">최종 업데이트: {item.updatedAt || '-'} · 실제 운영 상황과 다를 수 있으니 방문 전 확인 바랍니다</p>
+  <!-- ━━━ 데이터 출처 + 신뢰도 표시 ━━━ -->
+  <footer class="bg-gray-50 rounded-2xl p-6 mb-4">
+    <div class="flex items-center gap-2 mb-3">
+      <svg class="w-4 h-4 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
+      <span class="text-sm font-bold text-gray-700">데이터 신뢰도</span>
+    </div>
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs text-gray-500 mb-4">
+      <div class="flex items-start gap-2">
+        <span class="text-gray-400 w-20 shrink-0">데이터 출처</span>
+        <span><a href="https://data.go.kr" target="_blank" rel="noopener" class="text-emerald-600 underline hover:text-emerald-700">공공데이터포털</a> 전국주차장정보 표준데이터</span>
+      </div>
+      <div class="flex items-start gap-2">
+        <span class="text-gray-400 w-20 shrink-0">데이터 기준일</span>
+        <span>{item.updatedAt || '정보 없음'}</span>
+      </div>
+      <div class="flex items-start gap-2">
+        <span class="text-gray-400 w-20 shrink-0">현장 확인일</span>
+        <span>{item.lastVerified || '확인 예정'}</span>
+      </div>
+      <div class="flex items-start gap-2">
+        <span class="text-gray-400 w-20 shrink-0">작성</span>
+        <span>파킹맵 에디터</span>
+      </div>
+      {item.phone && (
+        <div class="flex items-start gap-2">
+          <span class="text-gray-400 w-20 shrink-0">관리사무소</span>
+          <span><a href={`tel:${item.phone}`} class="text-emerald-600 underline hover:text-emerald-700">{item.phone}</a></span>
+        </div>
+      )}
+    </div>
+    <div class="border-t border-gray-200 pt-3 flex flex-col sm:flex-row items-center justify-between gap-2">
+      <p class="text-xs text-gray-400">실제 운영 상황과 다를 수 있으니 방문 전 확인을 권장합니다</p>
+      <a
+        href={`mailto:info@parkingmap.kr?subject=${encodeURIComponent(`[정보수정] ${displayName} 주차장`)}&body=${encodeURIComponent(`주차장명: ${displayName}\n주소: ${item.roadAddress || item.address}\n\n수정 내용:\n`)}`}
+        class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-gray-500 bg-white border border-gray-200 rounded-lg hover:border-emerald-300 hover:text-emerald-600 transition-colors"
+      >
+        <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"/></svg>
+        정보 수정 제안
+      </a>
+    </div>
   </footer>
 
   <!-- ━━━ 네이버 지도 스크립트 ━━━ -->
