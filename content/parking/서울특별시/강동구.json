@@ -31,7 +31,14 @@
       "updatedAt": "2021-07-30",
       "sido": "서울특별시",
       "sigungu": "강동구",
-      "dong": "천호동"
+      "dong": "천호동",
+      "nearbyAmenities": [
+        {"name": "천호역 (5·8호선)", "category": "지하철역", "walkMin": 1},
+        {"name": "현대백화점 천호점", "category": "백화점", "walkMin": 2},
+        {"name": "이마트 천호점", "category": "대형마트", "walkMin": 3},
+        {"name": "강동성심병원", "category": "종합병원", "walkMin": 13},
+        {"name": "천호중학교", "category": "학교", "walkMin": 7}
+      ]
     },
     {
       "name": "해공공영주차장",
@@ -60,7 +67,14 @@
       "updatedAt": "2021-08-25",
       "sido": "서울특별시",
       "sigungu": "강동구",
-      "dong": "천호동"
+      "dong": "천호동",
+      "nearbyAmenities": [
+        {"name": "해공도서관", "category": "도서관", "walkMin": 1},
+        {"name": "고분다리전통시장", "category": "전통시장", "walkMin": 5},
+        {"name": "천호역 (5·8호선)", "category": "지하철역", "walkMin": 8},
+        {"name": "천호공원", "category": "공원", "walkMin": 1},
+        {"name": "천호초등학교", "category": "학교", "walkMin": 7}
+      ]
     },
     {
       "name": "명일동공영주차장",
@@ -89,7 +103,14 @@
       "updatedAt": "2021-08-25",
       "sido": "서울특별시",
       "sigungu": "강동구",
-      "dong": "명일동"
+      "dong": "명일동",
+      "nearbyAmenities": [
+        {"name": "명일역 (5호선)", "category": "지하철역", "walkMin": 7},
+        {"name": "이마트 명일점", "category": "대형마트", "walkMin": 10},
+        {"name": "명일전통시장", "category": "전통시장", "walkMin": 8},
+        {"name": "강동성모요양병원", "category": "병원", "walkMin": 10},
+        {"name": "명일여자고등학교", "category": "학교", "walkMin": 8}
+      ]
     },
     {
       "name": "천호1동공영주차장",
@@ -118,7 +139,14 @@
       "updatedAt": "2021-08-25",
       "sido": "서울특별시",
       "sigungu": "강동구",
-      "dong": "천호동"
+      "dong": "천호동",
+      "nearbyAmenities": [
+        {"name": "강동역 (5호선)", "category": "지하철역", "walkMin": 5},
+        {"name": "강동성심병원", "category": "종합병원", "walkMin": 5},
+        {"name": "현대백화점 천호점", "category": "백화점", "walkMin": 10},
+        {"name": "이마트 천호점", "category": "대형마트", "walkMin": 10},
+        {"name": "천호초등학교", "category": "학교", "walkMin": 4}
+      ]
     },
     {
       "name": "천호3동공영주차장",
@@ -147,7 +175,13 @@
       "updatedAt": "2021-08-25",
       "sido": "서울특별시",
       "sigungu": "강동구",
-      "dong": "천호동"
+      "dong": "천호동",
+      "nearbyAmenities": [
+        {"name": "천호역 (5·8호선)", "category": "지하철역", "walkMin": 10},
+        {"name": "암사역 (8호선)", "category": "지하철역", "walkMin": 8},
+        {"name": "천호공원", "category": "공원", "walkMin": 6},
+        {"name": "서울천호초등학교", "category": "학교", "walkMin": 5}
+      ]
     },
     {
       "name": "천호3동제2공영주차장",
@@ -176,7 +210,13 @@
       "updatedAt": "2021-08-25",
       "sido": "서울특별시",
       "sigungu": "강동구",
-      "dong": "천호동"
+      "dong": "천호동",
+      "nearbyAmenities": [
+        {"name": "천호역 (5·8호선)", "category": "지하철역", "walkMin": 10},
+        {"name": "암사역 (8호선)", "category": "지하철역", "walkMin": 8},
+        {"name": "천호공원", "category": "공원", "walkMin": 6},
+        {"name": "서울천호초등학교", "category": "학교", "walkMin": 5}
+      ]
     },
     {
       "name": "안말공영주차장",
@@ -205,7 +245,14 @@
       "updatedAt": "2021-08-25",
       "sido": "서울특별시",
       "sigungu": "강동구",
-      "dong": "성내동"
+      "dong": "성내동",
+      "nearbyAmenities": [
+        {"name": "강동역 (5호선)", "category": "지하철역", "walkMin": 5},
+        {"name": "강동성심병원", "category": "종합병원", "walkMin": 6},
+        {"name": "서울성내초등학교", "category": "학교", "walkMin": 5},
+        {"name": "천호역 (5·8호선)", "category": "지하철역", "walkMin": 12},
+        {"name": "성내중학교", "category": "학교", "walkMin": 7}
+      ]
     },
     {
       "name": "천호유수지공영주차장",
@@ -234,7 +281,14 @@
       "updatedAt": "2021-08-25",
       "sido": "서울특별시",
       "sigungu": "강동구",
-      "dong": "천호동"
+      "dong": "천호동",
+      "nearbyAmenities": [
+        {"name": "천호역 (5·8호선)", "category": "지하철역", "walkMin": 5},
+        {"name": "현대백화점 천호점", "category": "백화점", "walkMin": 5},
+        {"name": "고분다리전통시장", "category": "전통시장", "walkMin": 3},
+        {"name": "천호공원", "category": "공원", "walkMin": 4},
+        {"name": "천호초등학교", "category": "학교", "walkMin": 5}
+      ]
     },
     {
       "name": "암사1동공영주차장",
@@ -263,7 +317,13 @@
       "updatedAt": "2021-08-25",
       "sido": "서울특별시",
       "sigungu": "강동구",
-      "dong": "암사동"
+      "dong": "암사동",
+      "nearbyAmenities": [
+        {"name": "암사역 (8호선)", "category": "지하철역", "walkMin": 7},
+        {"name": "암사종합시장", "category": "전통시장", "walkMin": 8},
+        {"name": "서울선사초등학교", "category": "학교", "walkMin": 5},
+        {"name": "암사선사유적지", "category": "유적지", "walkMin": 15}
+      ]
     },
     {
       "name": "강일동공영주차장",
@@ -292,7 +352,13 @@
       "updatedAt": "2021-08-25",
       "sido": "서울특별시",
       "sigungu": "강동구",
-      "dong": "강일동"
+      "dong": "강일동",
+      "nearbyAmenities": [
+        {"name": "강일역 (5호선)", "category": "지하철역", "walkMin": 12},
+        {"name": "이케아 강동점", "category": "가구/생활", "walkMin": 15},
+        {"name": "강일초등학교", "category": "학교", "walkMin": 8},
+        {"name": "강일중학교", "category": "학교", "walkMin": 10}
+      ]
     },
     {
       "name": "강일동노상주차장",
@@ -321,7 +387,13 @@
       "updatedAt": "2021-08-25",
       "sido": "서울특별시",
       "sigungu": "강동구",
-      "dong": "강일동"
+      "dong": "강일동",
+      "nearbyAmenities": [
+        {"name": "강일역 (5호선)", "category": "지하철역", "walkMin": 12},
+        {"name": "이케아 강동점", "category": "가구/생활", "walkMin": 15},
+        {"name": "강일초등학교", "category": "학교", "walkMin": 8},
+        {"name": "강일중학교", "category": "학교", "walkMin": 10}
+      ]
     },
     {
       "name": "주양쇼핑옆노상주차장",
@@ -350,7 +422,13 @@
       "updatedAt": "2021-08-25",
       "sido": "서울특별시",
       "sigungu": "강동구",
-      "dong": "명일동"
+      "dong": "명일동",
+      "nearbyAmenities": [
+        {"name": "명일역 (5호선)", "category": "지하철역", "walkMin": 5},
+        {"name": "굽은다리역 (5호선)", "category": "지하철역", "walkMin": 8},
+        {"name": "홈플러스 강동점", "category": "대형마트", "walkMin": 10},
+        {"name": "명일전통시장", "category": "전통시장", "walkMin": 3}
+      ]
     },
     {
       "name": "주양쇼핑앞노상주차장",
@@ -379,7 +457,13 @@
       "updatedAt": "2021-08-25",
       "sido": "서울특별시",
       "sigungu": "강동구",
-      "dong": "명일동"
+      "dong": "명일동",
+      "nearbyAmenities": [
+        {"name": "굽은다리역 (5호선)", "category": "지하철역", "walkMin": 5},
+        {"name": "홈플러스 강동점", "category": "대형마트", "walkMin": 5},
+        {"name": "명일전통시장", "category": "전통시장", "walkMin": 5},
+        {"name": "명일역 (5호선)", "category": "지하철역", "walkMin": 10}
+      ]
     },
     {
       "name": "온조대왕옆공영주차장",
@@ -408,7 +492,14 @@
       "updatedAt": "2021-08-25",
       "sido": "서울특별시",
       "sigungu": "강동구",
-      "dong": "고덕동"
+      "dong": "고덕동",
+      "nearbyAmenities": [
+        {"name": "상일동역 (5호선)", "category": "지하철역", "walkMin": 4},
+        {"name": "강동경희대학교병원", "category": "종합병원", "walkMin": 5},
+        {"name": "온조대왕 문화체육관", "category": "체육시설", "walkMin": 1},
+        {"name": "고덕역 (5호선)", "category": "지하철역", "walkMin": 8},
+        {"name": "서울강덕초등학교", "category": "학교", "walkMin": 5}
+      ]
     },
     {
       "name": "고분다리전통시장공영주차장",
@@ -437,7 +528,14 @@
       "updatedAt": "2021-08-25",
       "sido": "서울특별시",
       "sigungu": "강동구",
-      "dong": "천호동"
+      "dong": "천호동",
+      "nearbyAmenities": [
+        {"name": "고분다리전통시장", "category": "전통시장", "walkMin": 1},
+        {"name": "천호역 (5·8호선)", "category": "지하철역", "walkMin": 5},
+        {"name": "천호공원 (해공도서관)", "category": "공원/도서관", "walkMin": 3},
+        {"name": "현대백화점 천호점", "category": "백화점", "walkMin": 7},
+        {"name": "이마트 천호점", "category": "대형마트", "walkMin": 8}
+      ]
     },
     {
       "name": "천호2동공영주차장",
@@ -466,7 +564,13 @@
       "updatedAt": "2021-08-25",
       "sido": "서울특별시",
       "sigungu": "강동구",
-      "dong": "천호동"
+      "dong": "천호동",
+      "nearbyAmenities": [
+        {"name": "천호역 (5·8호선)", "category": "지하철역", "walkMin": 3},
+        {"name": "현대백화점 천호점", "category": "백화점", "walkMin": 3},
+        {"name": "이마트 천호점", "category": "대형마트", "walkMin": 4},
+        {"name": "천호 로데오거리", "category": "상가/상권", "walkMin": 5}
+      ]
     },
     {
       "name": "명일동",
@@ -495,7 +599,14 @@
       "updatedAt": "2021-07-30",
       "sido": "서울특별시",
       "sigungu": "강동구",
-      "dong": "명일동"
+      "dong": "명일동",
+      "nearbyAmenities": [
+        {"name": "굽은다리역 (5호선)", "category": "지하철역", "walkMin": 5},
+        {"name": "홈플러스 강동점", "category": "대형마트", "walkMin": 5},
+        {"name": "명일전통시장", "category": "전통시장", "walkMin": 5},
+        {"name": "명리단길", "category": "상가/상권", "walkMin": 3},
+        {"name": "명일역 (5호선)", "category": "지하철역", "walkMin": 10}
+      ]
     },
     {
       "name": "천호2동제2노상주차장",
@@ -524,7 +635,14 @@
       "updatedAt": "2021-08-25",
       "sido": "서울특별시",
       "sigungu": "강동구",
-      "dong": "천호동"
+      "dong": "천호동",
+      "nearbyAmenities": [
+        {"name": "천호역 (5·8호선)", "category": "지하철역", "walkMin": 2},
+        {"name": "현대백화점 천호점", "category": "백화점", "walkMin": 2},
+        {"name": "이마트 천호점", "category": "대형마트", "walkMin": 3},
+        {"name": "천호 로데오거리", "category": "상가/상권", "walkMin": 4},
+        {"name": "천호중학교", "category": "학교", "walkMin": 7}
+      ]
     }
   ]
 }

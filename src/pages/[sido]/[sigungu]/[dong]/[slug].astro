@@ -755,6 +755,30 @@ const images: string[] = item.images || [];
     <p class="text-xs text-gray-400 mt-4 border-t border-gray-100 pt-3">파킹맵 에디터가 현장 방문 후 확인·업데이트 중입니다. 일부 정보는 아직 수집 전일 수 있습니다.</p>
   </section>
 
+  <!-- ━━━ 주변 편의시설 ━━━ -->
+  {item.nearbyAmenities && item.nearbyAmenities.length > 0 && (
+    <section class="border border-gray-200 rounded-2xl p-5 mb-4">
+      <h2 class="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+        <svg class="w-5 h-5 text-teal-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21l-7-5-7 5V5a2 2 0 012-2h10a2 2 0 012 2z"/></svg>
+        주변 편의시설
+      </h2>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+        {item.nearbyAmenities.map((a: any) => (
+          <div class="flex items-center gap-3 p-3 bg-gray-50 rounded-xl">
+            <div class="w-10 h-10 bg-teal-100 rounded-full flex items-center justify-center shrink-0">
+              <span class="text-teal-700 text-xs font-black">{a.walkMin}분</span>
+            </div>
+            <div>
+              <p class="text-sm font-semibold text-gray-900">{a.name}</p>
+              <p class="text-xs text-gray-400">{a.category} · 도보 {a.walkMin}분</p>
+            </div>
+          </div>
+        ))}
+      </div>
+      <p class="text-xs text-gray-400 mt-3 text-center">도보 시간은 일반 성인 보행 속도(분당 약 70~80m) 기준 예상치입니다</p>
+    </section>
+  )}
+
   <!-- ━━━ 운영 시간 ━━━ -->
   <section class="border border-gray-200 rounded-2xl p-5 mb-4">
     <h2 class="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
@@ -793,7 +817,7 @@ const images: string[] = item.images || [];
       <div class="space-y-4">
         {/* 기본 요금 정보 */}
         <div class="bg-blue-50 rounded-xl p-4">
-          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 text-center">
+          <div class="flex flex-wrap justify-center gap-6 text-center">
             {item.basicTime && item.basicCharge ? (
               <div>
                 <p class="text-xs text-blue-400 mb-1">기본요금</p>
