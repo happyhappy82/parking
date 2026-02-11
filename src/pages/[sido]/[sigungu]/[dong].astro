@@ -21,8 +21,12 @@ export function getStaticPaths() {
     const sidoDir = path.join(parkingDir, sido);
     const files = fs.readdirSync(sidoDir).filter((f: string) => f.endsWith('.json'));
 
+    // 현재 활성화된 시군구 목록 (데이터 검증 완료된 지역)
+    const ACTIVE_SIGUNGUS = ['강동구'];
+
     for (const file of files) {
       const sigungu = file.replace('.json', '');
+      if (!ACTIVE_SIGUNGUS.includes(sigungu)) continue;
       const filePath = path.join(sidoDir, file);
 
       try {

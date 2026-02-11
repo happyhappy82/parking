@@ -70,6 +70,9 @@ for (const file of files) {
 
 sigungus.sort((a, b) => b.total - a.total);
 
+// 현재 활성화된 시군구 목록 (데이터 검증 완료된 지역)
+const ACTIVE_SIGUNGUS = ['강동구'];
+
 const title = `${sidoShort} 무료주차장 · 공영주차장 지도 - 자치구별 위치 총정리 | 주차장 지도`;
 const description = `${sido} 무료주차장 ${freeAll}곳, 유료주차장 ${paidAll}곳 위치·요금 안내. ${sigungus.map(s => s.name).slice(0, 5).join(', ')} 등 자치구별 주차장 검색.`;
 const canonical = `https://parkingmap.kr/${encodeURIComponent(sido!)}/`;
@@ -138,20 +141,26 @@ const breadcrumbs = [
     <div class="mb-8">
       <h2 class="text-lg font-bold text-gray-900 mb-4">시군구별 주차장</h2>
       <div id="sg-grid" class="grid grid-cols-2 sm:grid-cols-3 gap-2">
-        {sigungus.map((sg) => (
-          <a
-            href={`/${encodeURIComponent(sido!)}/${encodeURIComponent(sg.name)}/`}
-            class="sg-card text-left p-4 bg-white border border-gray-200 rounded-xl hover:border-emerald-400 hover:shadow-md transition-all"
-            data-name={sg.name}
-          >
-            <p class="font-semibold text-gray-900 text-sm">{sg.name}</p>
-            <p class="text-xs text-gray-400 mt-1">{sg.total}개 주차장</p>
-            <div class="flex gap-2 mt-1.5">
-              {sg.free > 0 && <span class="text-[10px] text-emerald-600">무료 {sg.free}</span>}
-              {sg.paid > 0 && <span class="text-[10px] text-blue-600">유료 {sg.paid}</span>}
-            </div>
-          </a>
-        ))}
+        {sigungus.map((sg) => {
+          const sgActive = ACTIVE_SIGUNGUS.includes(sg.name);
+          return (
+            <a
+              href={`/${encodeURIComponent(sido!)}/${encodeURIComponent(sg.name)}/`}
+              class={`sg-card text-left p-4 rounded-xl transition-all ${sgActive ? 'bg-white border border-gray-200 hover:border-emerald-400 hover:shadow-md' : 'bg-gray-50 border border-gray-100 opacity-70'}`}
+              data-name={sg.name}
+            >
+              <div class="flex items-center gap-2">
+                <p class="font-semibold text-gray-900 text-sm">{sg.name}</p>
+                {!sgActive && <span class="text-[10px] font-semibold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded">준비중</span>}
+              </div>
+              <p class="text-xs text-gray-400 mt-1">{sg.total}개 주차장</p>
+              <div class="flex gap-2 mt-1.5">
+                {sg.free > 0 && <span class="text-[10px] text-emerald-600">무료 {sg.free}</span>}
+                {sg.paid > 0 && <span class="text-[10px] text-blue-600">유료 {sg.paid}</span>}
+              </div>
+            </a>
+          );
+        })}
       </div>
     </div>
 
