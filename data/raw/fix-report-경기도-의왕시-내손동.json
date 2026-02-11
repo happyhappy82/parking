@@ -1,0 +1,440 @@
+[
+  {
+    "name": "글로벌인재센터옆",
+    "originalAddress": "경기도 의왕시 복지로 36",
+    "originalLat": 37.382234,
+    "originalLng": 126.976921,
+    "issues": [],
+    "fixes": {
+      "roadAddress": "경기 의왕시 복지로 36",
+      "kakaoLat": 37.38244841268578,
+      "kakaoLng": 126.97697481127489,
+      "kakaoName": "글로벌인재센터옆 노외주차장"
+    },
+    "kakaoMatch": {
+      "name": "글로벌인재센터옆 노외주차장",
+      "address": "경기 의왕시 내손동 724",
+      "phone": "",
+      "distance": 24,
+      "lat": 37.38244841268578,
+      "lng": 126.97697481127489,
+      "placeUrl": "http://place.map.kakao.com/1418067313"
+    }
+  },
+  {
+    "name": "복지로1 노상주차장",
+    "originalAddress": "경기도 의왕시 내손동 713-4",
+    "originalLat": 37.38562036,
+    "originalLng": 126.9817777,
+    "issues": [],
+    "fixes": {},
+    "nearbyOptions": [
+      {
+        "name": "노상 공영 주차장",
+        "address": "경기 의왕시 내손동 713-8",
+        "distance": 27
+      },
+      {
+        "name": "내손제4공영주차장",
+        "address": "경기 의왕시 내손동 710-15",
+        "distance": 144
+      },
+      {
+        "name": "노상공영주차장",
+        "address": "경기 의왕시 내손동 713-15",
+        "distance": 147
+      }
+    ]
+  },
+  {
+    "name": "내손공원길 노상주차장",
+    "originalAddress": "경기도 의왕시 내손동 713-8",
+    "originalLat": 37.38642789,
+    "originalLng": 126.9844564,
+    "issues": [],
+    "fixes": {},
+    "nearbyOptions": [
+      {
+        "name": "내손주차빌딩 공영 주차장",
+        "address": "경기 의왕시 내손동 713-8",
+        "distance": 8
+      },
+      {
+        "name": "의왕중봉청소년수련관 주차장",
+        "address": "경기 의왕시 내손순환로 138",
+        "distance": 92
+      },
+      {
+        "name": "노상공영주차장",
+        "address": "경기 의왕시 내손동 713-3",
+        "distance": 144
+      }
+    ]
+  },
+  {
+    "name": "민방위교육장 주차장",
+    "originalAddress": "경기도 의왕시 내손중앙로 44",
+    "originalLat": 37.386601,
+    "originalLng": 126.980555,
+    "issues": [],
+    "fixes": {
+      "roadAddress": "경기 의왕시 내손중앙로 지하 44",
+      "kakaoLat": 37.3863747598371,
+      "kakaoLng": 126.980215507635,
+      "kakaoName": "민방위교육장 노외공영주차장"
+    },
+    "kakaoMatch": {
+      "name": "민방위교육장 노외공영주차장",
+      "address": "경기 의왕시 내손동 713-15",
+      "phone": "",
+      "distance": 39,
+      "lat": 37.3863747598371,
+      "lng": 126.980215507635,
+      "placeUrl": "http://place.map.kakao.com/767823374"
+    }
+  },
+  {
+    "name": "이면도로 주차장",
+    "originalAddress": "경기도 의왕시 내손중앙3길",
+    "originalLat": 37.385479,
+    "originalLng": 126.981793,
+    "issues": [],
+    "fixes": {
+      "roadAddress": "경기 의왕시 내손중앙3길"
+    },
+    "nearbyOptions": [
+      {
+        "name": "노상 공영 주차장",
+        "address": "경기 의왕시 내손동 713-8",
+        "distance": 28
+      },
+      {
+        "name": "노상공영주차장",
+        "address": "경기 의왕시 내손동 713-15",
+        "distance": 158
+      },
+      {
+        "name": "내손제4공영주차장",
+        "address": "경기 의왕시 내손동 710-15",
+        "distance": 159
+      }
+    ]
+  },
+  {
+    "name": "이면도로 주차장",
+    "originalAddress": "경기도 의왕시 내손중앙6길",
+    "originalLat": 37.384646,
+    "originalLng": 126.982805,
+    "issues": [
+      "지오코딩 실패 (주소를 찾을 수 없음)"
+    ],
+    "fixes": {},
+    "nearbyOptions": [
+      {
+        "name": "노상 공영 주차장",
+        "address": "경기 의왕시 내손동 713-8",
+        "distance": 122
+      },
+      {
+        "name": "노상공영주차장",
+        "address": "경기 의왕시 내손동 713-3",
+        "distance": 135
+      },
+      {
+        "name": "포일성당 주차장",
+        "address": "경기 의왕시 정우2길 6",
+        "distance": 182
+      }
+    ]
+  },
+  {
+    "name": "내손중앙로1 노상주차장",
+    "originalAddress": "경기도 의왕시 내손동 713-4",
+    "originalLat": 37.38562036,
+    "originalLng": 126.9817777,
+    "issues": [],
+    "fixes": {},
+    "nearbyOptions": [
+      {
+        "name": "노상 공영 주차장",
+        "address": "경기 의왕시 내손동 713-8",
+        "distance": 27
+      },
+      {
+        "name": "내손제4공영주차장",
+        "address": "경기 의왕시 내손동 710-15",
+        "distance": 144
+      },
+      {
+        "name": "노상공영주차장",
+        "address": "경기 의왕시 내손동 713-15",
+        "distance": 147
+      }
+    ]
+  },
+  {
+    "name": "내손중앙로2 노상주차장",
+    "originalAddress": "경기도 의왕시 내손순환로 4(내손동)",
+    "originalLat": 37.38814078,
+    "originalLng": 126.9746193,
+    "issues": [],
+    "fixes": {
+      "roadAddress": "경기 의왕시 내손순환로 4"
+    },
+    "nearbyOptions": [
+      {
+        "name": "미성빌딩 주차장",
+        "address": "경기 안양시 동안구 포일로 8",
+        "distance": 73
+      }
+    ]
+  },
+  {
+    "name": "내손순환로 노상주차장",
+    "originalAddress": "경기도 의왕시 내손동 713-3",
+    "originalLat": 37.38768991,
+    "originalLng": 126.9842064,
+    "issues": [],
+    "fixes": {},
+    "nearbyOptions": [
+      {
+        "name": "의왕중봉청소년수련관 주차장",
+        "address": "경기 의왕시 내손순환로 138",
+        "distance": 60
+      },
+      {
+        "name": "내손주차빌딩 공영 주차장",
+        "address": "경기 의왕시 내손동 713-8",
+        "distance": 138
+      },
+      {
+        "name": "내손2동주민센터 공영주차장",
+        "address": "경기 의왕시 복지로 109",
+        "distance": 192
+      }
+    ]
+  },
+  {
+    "name": "내손중앙2길 노상주차장",
+    "originalAddress": "경기도 의왕시 내손중앙2길",
+    "originalLat": 37.38642789,
+    "originalLng": 126.9844564,
+    "issues": [
+      "좌표 221m 차이"
+    ],
+    "fixes": {
+      "lat": 37.3860990596274,
+      "lng": 126.981988284863,
+      "roadAddress": "경기 의왕시 내손중앙2길"
+    },
+    "nearbyOptions": [
+      {
+        "name": "노상 공영 주차장",
+        "address": "경기 의왕시 내손동 713-8",
+        "distance": 57
+      },
+      {
+        "name": "내손제4공영주차장",
+        "address": "경기 의왕시 내손동 710-15",
+        "distance": 107
+      },
+      {
+        "name": "의왕농협 내손지점 주차장",
+        "address": "경기 의왕시 내손동 643-3",
+        "distance": 133
+      }
+    ]
+  },
+  {
+    "name": "내손체육공원 주차빌딩",
+    "originalAddress": "경기도 의왕시 내손순환로 139",
+    "originalLat": 37.386975,
+    "originalLng": 126.984169,
+    "issues": [],
+    "fixes": {
+      "roadAddress": "경기 의왕시 내손순환로 139"
+    },
+    "nearbyOptions": [
+      {
+        "name": "의왕중봉청소년수련관 주차장",
+        "address": "경기 의왕시 내손순환로 138",
+        "distance": 50
+      },
+      {
+        "name": "내손주차빌딩 공영 주차장",
+        "address": "경기 의왕시 내손동 713-8",
+        "distance": 65
+      }
+    ]
+  },
+  {
+    "name": "내손 제3공영주차장",
+    "originalAddress": "경기도 의왕시 내손중앙로 46-9",
+    "originalLat": 37.38548384,
+    "originalLng": 126.9792538,
+    "issues": [],
+    "fixes": {
+      "roadAddress": "경기 의왕시 내손중앙로 지하 46-9",
+      "kakaoLat": 37.3856115405794,
+      "kakaoLng": 126.97990518479,
+      "kakaoName": "내손제3공영주차장",
+      "phone": "031-8086-7440"
+    },
+    "kakaoMatch": {
+      "name": "내손제3공영주차장",
+      "address": "경기 의왕시 내손중앙로 지하 46-9",
+      "phone": "031-8086-7440",
+      "distance": 59,
+      "lat": 37.3856115405794,
+      "lng": 126.97990518479,
+      "placeUrl": "http://place.map.kakao.com/20950673"
+    }
+  },
+  {
+    "name": "내손 제1공영주차장",
+    "originalAddress": "경기도 의왕시 내손순환로 58",
+    "originalLat": 37.383625,
+    "originalLng": 126.977702,
+    "issues": [],
+    "fixes": {
+      "roadAddress": "경기 의왕시 내손순환로 지하 58",
+      "kakaoLat": 37.3839569143164,
+      "kakaoLng": 126.977958969806,
+      "kakaoName": "내손제1공영주차장",
+      "phone": "031-8086-7440"
+    },
+    "kakaoMatch": {
+      "name": "내손제1공영주차장",
+      "address": "경기 의왕시 내손순환로 지하 58",
+      "phone": "031-8086-7440",
+      "distance": 43,
+      "lat": 37.3839569143164,
+      "lng": 126.977958969806,
+      "placeUrl": "http://place.map.kakao.com/13582692"
+    }
+  },
+  {
+    "name": "서울외곽순환고속도로하부",
+    "originalAddress": "경기도 의왕시 계원대학로 2",
+    "originalLat": 37.379775,
+    "originalLng": 126.971633,
+    "issues": [],
+    "fixes": {
+      "roadAddress": "경기 의왕시 계원대학로 2"
+    },
+    "nearbyOptions": [
+      {
+        "name": "수도권제1순환고속도로하부 노상공영주차장",
+        "address": "경기 의왕시 계원대학로 10",
+        "distance": 77
+      },
+      {
+        "name": "대림프라자 지하주차장",
+        "address": "경기 의왕시 계원대학로 10",
+        "distance": 78
+      },
+      {
+        "name": "메트로주차장",
+        "address": "경기 의왕시 갈미2로 32",
+        "distance": 94
+      }
+    ]
+  },
+  {
+    "name": "내손 제2공영주차장",
+    "originalAddress": "경기도 의왕시 민백길 4",
+    "originalLat": 37.386028,
+    "originalLng": 126.973424,
+    "issues": [],
+    "fixes": {
+      "roadAddress": "경기 의왕시 민백길 지하 4",
+      "kakaoLat": 37.3860283354944,
+      "kakaoLng": 126.973419051107,
+      "kakaoName": "내손제2공영주차장"
+    },
+    "kakaoMatch": {
+      "name": "내손제2공영주차장",
+      "address": "경기 의왕시 민백길 지하 4",
+      "phone": "",
+      "distance": 0,
+      "lat": 37.3860283354944,
+      "lng": 126.973419051107,
+      "placeUrl": "http://place.map.kakao.com/24066956"
+    }
+  },
+  {
+    "name": "갈미어린이공원 공영주차장",
+    "originalAddress": "경기도 의왕시 오리나무1길 13(내손동)",
+    "originalLat": 37.37526656,
+    "originalLng": 126.9688645,
+    "issues": [],
+    "fixes": {
+      "roadAddress": "경기 의왕시 오리나무1길 13",
+      "kakaoLat": 37.375346500248575,
+      "kakaoLng": 126.96893495843425,
+      "kakaoName": "갈미어린이공원 공영주차장"
+    },
+    "kakaoMatch": {
+      "name": "갈미어린이공원 공영주차장",
+      "address": "경기 의왕시 오리나무1길 13",
+      "phone": "",
+      "distance": 10,
+      "lat": 37.375346500248575,
+      "lng": 126.96893495843425,
+      "placeUrl": "http://place.map.kakao.com/880624538"
+    }
+  },
+  {
+    "name": "계원대학로 제2 공영주차장",
+    "originalAddress": "경기도 의왕시 내손동 745",
+    "originalLat": 37.37972687,
+    "originalLng": 126.9736243,
+    "issues": [
+      "좌표 145m 차이"
+    ],
+    "fixes": {
+      "lat": 37.3796002893907,
+      "lng": 126.975261729795
+    },
+    "nearbyOptions": [
+      {
+        "name": "계원마당 주차장",
+        "address": "경기 의왕시 계원대학로 47",
+        "distance": 127
+      },
+      {
+        "name": "제이제이 주차장",
+        "address": "경기 의왕시 갈미2로 7",
+        "distance": 144
+      },
+      {
+        "name": "Tmap주차 롯데마트 의왕점 민영주차장",
+        "address": "경기 의왕시 계원대학로 7",
+        "distance": 157
+      }
+    ]
+  },
+  {
+    "name": "내손 제4공영주차장",
+    "originalAddress": "경기도 의왕시 내손중앙로 45-8",
+    "originalLat": 37.38693266,
+    "originalLng": 126.9812378,
+    "issues": [],
+    "fixes": {
+      "roadAddress": "경기 의왕시 내손중앙로 지하 45-8",
+      "kakaoLat": 37.38682993441667,
+      "kakaoLng": 126.9811819782784,
+      "kakaoName": "내손제4공영주차장",
+      "phone": "031-8086-7440"
+    },
+    "kakaoMatch": {
+      "name": "내손제4공영주차장",
+      "address": "경기 의왕시 내손동 710-15",
+      "phone": "031-8086-7440",
+      "distance": 12,
+      "lat": 37.38682993441667,
+      "lng": 126.9811819782784,
+      "placeUrl": "http://place.map.kakao.com/20962596"
+    }
+  }
+]

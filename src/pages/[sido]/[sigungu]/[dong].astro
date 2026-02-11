@@ -1,0 +1,80 @@
+---
+import BaseLayout from '../../../layouts/BaseLayout.astro';
+import Header from '../../../components/Header.astro';
+import ParkingDirectory from '../../../components/ParkingDirectory.astro';
+import fs from 'node:fs';
+import path from 'node:path';
+
+const naverClientId = import.meta.env.PUBLIC_NAVER_MAP_CLIENT_ID;
+
+export function getStaticPaths() {
+  const parkingDir = path.join(process.cwd(), 'content', 'parking');
+  const paths: { params: { sido: string; sigungu: string; dong: string } }[] = [];
+
+  if (!fs.existsSync(parkingDir)) return paths;
+
+  const sidos = fs.readdirSync(parkingDir).filter((f: string) =>
+    fs.statSync(path.join(parkingDir, f)).isDirectory()
+  ).filter((f: string) => f === '서울특별시');
+
+  for (const sido of sidos) {
+    const sidoDir = path.join(parkingDir, sido);
+    const files = fs.readdirSync(sidoDir).filter((f: string) => f.endsWith('.json'));
+
+    for (const file of files) {
+      const sigungu = file.replace('.json', '');
+      const filePath = path.join(sidoDir, file);
+
+      try {
+        const raw = fs.readFileSync(filePath, 'utf-8');
+        const data = JSON.parse(raw);
+        const dongs = new Set<string>();
+
+        for (const item of data.items || []) {
+          if (item.dong) dongs.add(item.dong);
+        }
+
+        for (const dong of dongs) {
+          paths.push({ params: { sido, sigungu, dong } });
+        }
+      } catch (e) {
+        // skip invalid files
+      }
+    }
+  }
+
+  return paths;
+}
+
+const { sido, sigungu, dong } = Astro.params;
+
+const jsonPath = path.join(process.cwd(), 'content', 'parking', sido!, `${sigungu}.json`);
+const raw = fs.readFileSync(jsonPath, 'utf-8');
+const data = JSON.parse(raw);
+
+const items = data.items
+  .filter((item: any) => item.dong === dong)
+  .sort((a: any, b: any) => b.totalSpaces - a.totalSpaces);
+
+const freeCount = items.filter((i: any) => i.isFree).length;
+const paidCount = items.filter((i: any) => !i.isFree).length;
+
+const title = `${sigungu} ${dong} 무료주차장 · 공영주차장 지도 | 주차장 지도`;
+const description = `${sigungu} ${dong} 무료주차장 ${freeCount}곳, 유료주차장 ${paidCount}곳 위치·요금 안내. 네이버지도·카카오맵으로 바로 길찾기.`;
+const canonical = `https://parkingmap.kr/${encodeURIComponent(sido!)}/${encodeURIComponent(sigungu!)}/${encodeURIComponent(dong!)}/`;
+
+const breadcrumbs = [
+  { name: '홈', url: 'https://parkingmap.kr/' },
+  { name: sido!, url: `https://parkingmap.kr/${encodeURIComponent(sido!)}/` },
+  { name: sigungu!, url: `https://parkingmap.kr/${encodeURIComponent(sido!)}/${encodeURIComponent(sigungu!)}/` },
+  { name: dong!, url: canonical },
+];
+---
+
+<BaseLayout title={title} description={description} canonical={canonical} breadcrumbs={breadcrumbs}>
+  <Fragment slot="head" set:html={`<script src="https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId=${naverClientId}"></script>`} />
+  <Header currentPath="/" />
+  <main class="max-w-3xl mx-auto px-4 py-8">
+    <ParkingDirectory sido={sido!} sigungu={sigungu!} dong={dong!} items={items} />
+  </main>
+</BaseLayout>

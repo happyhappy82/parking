@@ -1,0 +1,59 @@
+[
+  {
+    "name": "민락동 버스공영차고지 앞",
+    "originalAddress": "경기도 의정부시 민락동 694",
+    "originalLat": 37.74183835,
+    "originalLng": 127.097906,
+    "issues": [
+      "카카오맵에서 주변 주차장 없음 (폐쇄 가능성)"
+    ],
+    "fixes": {
+      "roadAddress": "경기 의정부시 오목로 168"
+    }
+  },
+  {
+    "name": "민락2지구(궁촌교)",
+    "originalAddress": "경기도 의정부시 민락동 914",
+    "originalLat": 37.75192052,
+    "originalLng": 127.1131105,
+    "issues": [
+      "좌표 1018m 차이"
+    ],
+    "fixes": {
+      "lat": 37.7468781480704,
+      "lng": 127.103441813821
+    },
+    "nearbyOptions": [
+      {
+        "name": "망향비빔국수 민락점 주차장",
+        "address": "경기 의정부시 민락동 885",
+        "distance": 191
+      }
+    ]
+  },
+  {
+    "name": "민락동 제2공영",
+    "originalAddress": "경기도 의정부시 민락동 831",
+    "originalLat": 37.74692812,
+    "originalLng": 127.095528,
+    "issues": [],
+    "fixes": {},
+    "nearbyOptions": [
+      {
+        "name": "공영주차장",
+        "address": "경기 의정부시 민락동 831",
+        "distance": 4
+      },
+      {
+        "name": "민락CY타워 주차장",
+        "address": "경기 의정부시 오목로225번길 100",
+        "distance": 86
+      },
+      {
+        "name": "뉴욕뉴욕프라자 민영 주차장",
+        "address": "경기 의정부시 오목로225번길 105",
+        "distance": 89
+      }
+    ]
+  }
+]

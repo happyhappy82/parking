@@ -1,0 +1,29 @@
+---
+interface Props {
+  isHome?: boolean;
+}
+
+const { isHome = false } = Astro.props;
+---
+
+<header class="mb-16">
+  <div class="flex justify-between items-center">
+    <a href="/" class="flex items-center gap-4">
+      <img
+        src="/logo.png"
+        alt="주차장 지도 로고"
+        width="60"
+        height="60"
+        class="w-[60px] h-[60px] rounded-lg"
+      />
+      {isHome ? (
+        <h1 class="text-3xl md:text-4xl font-black text-blue-600">파킹맵<span class="text-gray-300 mx-1">|</span><span class="text-xl md:text-2xl font-bold text-gray-500">전국 주차장 지도</span></h1>
+      ) : (
+        <span class="text-3xl md:text-4xl font-black text-blue-600">파킹맵<span class="text-gray-300 mx-1">|</span><span class="text-xl md:text-2xl font-bold text-gray-500">전국 주차장 지도</span></span>
+      )}
+    </a>
+    <nav>
+      <a href="/about/" class="text-sm font-semibold text-gray-500 hover:text-emerald-600 transition-colors">소개</a>
+    </nav>
+  </div>
+</header>

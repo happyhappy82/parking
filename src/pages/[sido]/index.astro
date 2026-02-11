@@ -1,0 +1,197 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import Header from '../../components/Header.astro';
+import fs from 'node:fs';
+import path from 'node:path';
+
+export function getStaticPaths() {
+  const parkingDir = path.join(process.cwd(), 'content', 'parking');
+  const paths: { params: { sido: string } }[] = [];
+
+  if (!fs.existsSync(parkingDir)) return paths;
+
+  const sidos = fs.readdirSync(parkingDir).filter((f: string) =>
+    fs.statSync(path.join(parkingDir, f)).isDirectory()
+  ).filter((f: string) => f === '서울특별시');
+
+  for (const sido of sidos) {
+    paths.push({ params: { sido } });
+  }
+
+  return paths;
+}
+
+const { sido } = Astro.params;
+
+// 시도 약칭 매핑
+const SIDO_SHORT: Record<string, string> = {
+  '서울특별시': '서울', '부산광역시': '부산', '대구광역시': '대구',
+  '인천광역시': '인천', '광주광역시': '광주', '대전광역시': '대전',
+  '울산광역시': '울산', '세종특별자치시': '세종',
+  '경기도': '경기', '강원특별자치도': '강원', '강원도': '강원',
+  '충청북도': '충북', '충청남도': '충남',
+  '전북특별자치도': '전북', '전라북도': '전북', '전라남도': '전남',
+  '경상북도': '경북', '경상남도': '경남', '제주특별자치도': '제주',
+};
+const sidoShort = SIDO_SHORT[sido!] || sido;
+const sidoDisplay = sido!.replace(/특별자치|특별|광역/g, '');
+
+// 시군구별 집계
+const sidoDir = path.join(process.cwd(), 'content', 'parking', sido!);
+const files = fs.readdirSync(sidoDir).filter((f: string) => f.endsWith('.json'));
+
+interface SigunguInfo {
+  name: string;
+  total: number;
+  free: number;
+  paid: number;
+}
+
+const sigungus: SigunguInfo[] = [];
+let totalAll = 0;
+let freeAll = 0;
+let paidAll = 0;
+
+for (const file of files) {
+  const sigungu = file.replace('.json', '');
+  const filePath = path.join(sidoDir, file);
+  try {
+    const raw = fs.readFileSync(filePath, 'utf-8');
+    const data = JSON.parse(raw);
+    const items = data.items || [];
+    const free = items.filter((i: any) => i.isFree).length;
+    const paid = items.length - free;
+    sigungus.push({ name: sigungu, total: items.length, free, paid });
+    totalAll += items.length;
+    freeAll += free;
+    paidAll += paid;
+  } catch (e) { /* skip */ }
+}
+
+sigungus.sort((a, b) => b.total - a.total);
+
+const title = `${sidoShort} 무료주차장 · 공영주차장 지도 - 자치구별 위치 총정리 | 주차장 지도`;
+const description = `${sido} 무료주차장 ${freeAll}곳, 유료주차장 ${paidAll}곳 위치·요금 안내. ${sigungus.map(s => s.name).slice(0, 5).join(', ')} 등 자치구별 주차장 검색.`;
+const canonical = `https://parkingmap.kr/${encodeURIComponent(sido!)}/`;
+
+const breadcrumbs = [
+  { name: '홈', url: 'https://parkingmap.kr/' },
+  { name: sido!, url: canonical },
+];
+---
+
+<BaseLayout title={title} description={description} canonical={canonical} breadcrumbs={breadcrumbs}>
+  <Header currentPath="/" />
+  <main class="max-w-3xl mx-auto px-4 py-8">
+
+    <!-- 브레드크럼 -->
+    <nav class="flex items-center gap-1.5 text-sm text-gray-400 mb-6 flex-wrap">
+      <a href="/" class="hover:text-emerald-600 transition-colors">홈</a>
+      <span>/</span>
+      <span class="text-gray-900 font-semibold">{sido}</span>
+    </nav>
+
+    <!-- 페이지 제목 -->
+    <div class="mb-6">
+      <h1 class="text-3xl font-black text-gray-900 mb-2">{sidoDisplay} 공영주차장</h1>
+      <p class="text-gray-500">{sido} 지역의 공영주차장 정보입니다</p>
+    </div>
+
+    <!-- 통계 카드 -->
+    <div class="grid grid-cols-3 gap-3 mb-6">
+      <div class="bg-gray-50 rounded-xl p-4 text-center">
+        <p class="text-2xl font-black text-gray-900">{totalAll}</p>
+        <p class="text-xs text-gray-500 mt-1">전체 주차장</p>
+      </div>
+      <div class="bg-emerald-50 rounded-xl p-4 text-center">
+        <p class="text-2xl font-black text-emerald-600">{freeAll}</p>
+        <p class="text-xs text-emerald-600 mt-1">무료 주차장</p>
+      </div>
+      <div class="bg-blue-50 rounded-xl p-4 text-center">
+        <p class="text-2xl font-black text-blue-600">{paidAll}</p>
+        <p class="text-xs text-blue-600 mt-1">유료 주차장</p>
+      </div>
+    </div>
+
+    <!-- 검색 -->
+    <div class="mb-6 relative">
+      <div class="flex gap-3">
+        <div class="flex-1 relative">
+          <input
+            id="sg-search-input"
+            type="text"
+            placeholder={`${sidoShort} 지역 시군구명을 입력하세요 (예: ${sigungus[0]?.name || ''})`}
+            class="w-full px-4 py-3 border-2 border-gray-200 rounded-xl text-base focus:outline-none focus:border-emerald-500 transition-colors"
+            autocomplete="off"
+          />
+        </div>
+        <button
+          id="sg-search-btn"
+          class="px-6 py-3 bg-emerald-600 text-white font-semibold rounded-xl hover:bg-emerald-700 transition-colors shrink-0"
+        >
+          검색
+        </button>
+      </div>
+    </div>
+
+    <!-- 시군구 카드 그리드 -->
+    <div class="mb-8">
+      <h2 class="text-lg font-bold text-gray-900 mb-4">시군구별 주차장</h2>
+      <div id="sg-grid" class="grid grid-cols-2 sm:grid-cols-3 gap-2">
+        {sigungus.map((sg) => (
+          <a
+            href={`/${encodeURIComponent(sido!)}/${encodeURIComponent(sg.name)}/`}
+            class="sg-card text-left p-4 bg-white border border-gray-200 rounded-xl hover:border-emerald-400 hover:shadow-md transition-all"
+            data-name={sg.name}
+          >
+            <p class="font-semibold text-gray-900 text-sm">{sg.name}</p>
+            <p class="text-xs text-gray-400 mt-1">{sg.total}개 주차장</p>
+            <div class="flex gap-2 mt-1.5">
+              {sg.free > 0 && <span class="text-[10px] text-emerald-600">무료 {sg.free}</span>}
+              {sg.paid > 0 && <span class="text-[10px] text-blue-600">유료 {sg.paid}</span>}
+            </div>
+          </a>
+        ))}
+      </div>
+    </div>
+
+    <!-- CTA -->
+    <div class="p-6 bg-emerald-50 rounded-2xl text-center mb-6">
+      <p class="text-emerald-800 font-semibold mb-3">다른 지역의 주차장도 찾아보세요</p>
+      <a
+        href="/"
+        class="inline-block px-6 py-3 bg-emerald-600 text-white font-semibold rounded-xl hover:bg-emerald-700 transition-colors"
+      >
+        서울 무료주차장 검색
+      </a>
+    </div>
+
+    <!-- 데이터 출처 -->
+    <div class="mb-4 p-4 bg-gray-50 rounded-xl text-xs text-gray-400 text-center">
+      <p>데이터 출처: 공공데이터포털 (data.go.kr) - 전국주차장정보 표준데이터</p>
+      <p class="mt-1">실제 운영 상황과 다를 수 있으니 방문 전 확인 바랍니다</p>
+    </div>
+
+  </main>
+</BaseLayout>
+
+<script is:inline>
+  // 시군구 검색 필터
+  var sgInput = document.getElementById('sg-search-input');
+  var sgBtn = document.getElementById('sg-search-btn');
+  var sgCards = document.querySelectorAll('.sg-card');
+
+  function filterSigungu() {
+    var q = sgInput.value.trim().toLowerCase();
+    sgCards.forEach(function(card) {
+      var name = card.getAttribute('data-name').toLowerCase();
+      card.style.display = (!q || name.indexOf(q) !== -1) ? '' : 'none';
+    });
+  }
+
+  sgInput.addEventListener('input', filterSigungu);
+  sgBtn.addEventListener('click', filterSigungu);
+  sgInput.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') { e.preventDefault(); filterSigungu(); }
+  });
+</script>

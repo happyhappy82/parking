@@ -1,0 +1,93 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Header from '../components/Header.astro';
+
+const title = '주차장 지도 소개 - 서비스 안내 | ParkingMap';
+const description = '주차장 지도(ParkingMap)는 공공데이터포털의 전국주차장 표준데이터를 기반으로 서울시 무료·공영주차장 정보를 제공합니다. 데이터 출처, 검증 방식, 업데이트 주기를 안내합니다.';
+const canonical = 'https://parkingmap.kr/about/';
+
+const breadcrumbs = [
+  { name: '홈', url: 'https://parkingmap.kr/' },
+  { name: '소개', url: canonical },
+];
+---
+
+<BaseLayout title={title} description={description} canonical={canonical} breadcrumbs={breadcrumbs}>
+  <Header />
+
+  <div class="max-w-3xl mx-auto">
+    <h1 class="text-3xl font-black text-gray-900 mb-8">주차장 지도 소개</h1>
+
+    <!-- 왜 만들었나 -->
+    <section class="mb-10">
+      <h2 class="text-xl font-bold text-gray-900 mb-3">왜 만들었나요?</h2>
+      <p class="text-gray-600 leading-relaxed">
+        주말마다 가족과 나들이를 갈 때, 목적지 근처에서 주차장을 찾느라 시간을 허비하는 일이 많았습니다.
+        특히 무료주차장이 있는지, 가까운 공영주차장은 어디인지 한눈에 알 수 있는 서비스가 없어 불편했습니다.
+        그래서 직접 공공데이터를 활용해 서울시 주차장 정보를 지도에서 쉽게 찾을 수 있는 서비스를 만들게 되었습니다.
+      </p>
+    </section>
+
+    <!-- 데이터 출처 -->
+    <section class="mb-10">
+      <h2 class="text-xl font-bold text-gray-900 mb-3">데이터 출처</h2>
+      <p class="text-gray-600 leading-relaxed mb-3">
+        주차장 지도에서 제공하는 모든 주차장 정보는
+        <a href="https://www.data.go.kr/" target="_blank" rel="noopener noreferrer" class="text-emerald-600 font-semibold hover:underline">공공데이터포털(data.go.kr)</a>의
+        <strong>전국주차장정보 표준데이터</strong>를 기반으로 합니다.
+      </p>
+      <ul class="list-disc list-inside text-gray-600 space-y-1">
+        <li>주차장명, 주소, 위치(위도·경도)</li>
+        <li>주차 요금 정보 (무료/유료, 기본 요금)</li>
+        <li>운영 시간 (평일·주말·공휴일)</li>
+        <li>주차 가능 면수</li>
+        <li>주차장 유형 (노상/노외, 공영/민영 등)</li>
+      </ul>
+    </section>
+
+    <!-- 검증 방식 -->
+    <section class="mb-10">
+      <h2 class="text-xl font-bold text-gray-900 mb-3">데이터 검증 방식</h2>
+      <p class="text-gray-600 leading-relaxed">
+        공공데이터에 기재된 주소와 좌표를 네이버 지도, 카카오맵과 대조하여 실제 위치를 확인합니다.
+        사용자 제보를 통해 폐쇄되거나 변경된 주차장 정보를 반영하고 있으며,
+        주차장명이 실제와 다른 경우 네이버 플레이스 정보를 우선 적용합니다.
+      </p>
+    </section>
+
+    <!-- 업데이트 주기 -->
+    <section class="mb-10">
+      <h2 class="text-xl font-bold text-gray-900 mb-3">업데이트 주기</h2>
+      <p class="text-gray-600 leading-relaxed">
+        공공데이터포털에서 제공하는 데이터를 기준으로 <strong>매월 정기 갱신</strong>합니다.
+        다만 실제 운영 상황과 차이가 있을 수 있으므로, 방문 전 전화 또는 지도 앱을 통해 확인하시는 것을 권장합니다.
+      </p>
+    </section>
+
+    <!-- 문의 -->
+    <section class="mb-10">
+      <h2 class="text-xl font-bold text-gray-900 mb-3">문의 및 제보</h2>
+      <p class="text-gray-600 leading-relaxed">
+        잘못된 주차장 정보나 추가해야 할 주차장이 있다면 알려주세요.
+        사용자분들의 제보가 더 정확한 정보를 만드는 데 큰 도움이 됩니다.
+      </p>
+    </section>
+
+    <!-- CTA -->
+    <div class="p-6 bg-emerald-50 rounded-2xl text-center mb-6">
+      <p class="text-emerald-800 font-semibold mb-3">서울시 무료주차장을 찾아보세요</p>
+      <a
+        href="/"
+        class="inline-block px-6 py-3 bg-emerald-600 text-white font-semibold rounded-xl hover:bg-emerald-700 transition-colors"
+      >
+        주차장 검색하기
+      </a>
+    </div>
+
+    <!-- 데이터 출처 안내 -->
+    <div class="mb-4 p-4 bg-gray-50 rounded-xl text-xs text-gray-400 text-center">
+      <p>데이터 출처: 공공데이터포털 (data.go.kr) - 전국주차장정보 표준데이터</p>
+      <p class="mt-1">실제 운영 상황과 다를 수 있으니 방문 전 확인 바랍니다</p>
+    </div>
+  </div>
+</BaseLayout>

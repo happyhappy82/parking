@@ -1,0 +1,637 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Header from '../components/Header.astro';
+import fs from 'node:fs';
+import path from 'node:path';
+
+// 전체 주차장 수 빌드타임 계산
+const seoulDir = path.join(process.cwd(), 'content', 'parking', '서울특별시');
+let totalCount = 0;
+if (fs.existsSync(seoulDir)) {
+  const files = fs.readdirSync(seoulDir).filter((f: string) => f.endsWith('.json'));
+  for (const file of files) {
+    try {
+      const raw = fs.readFileSync(path.join(seoulDir, file), 'utf-8');
+      const data = JSON.parse(raw);
+      totalCount += (data.items || []).length;
+    } catch (e) { /* skip */ }
+  }
+}
+
+const pageTitle = '주차장 지도 - 서울 무료주차장 · 공영주차장 찾기 | ParkingMap';
+const pageDescription = `서울시 무료주차장, 공영주차장 ${totalCount}곳의 위치를 지도에서 한눈에 찾아보세요. 강남구, 서초구, 마포구 등 서울 25개구 주차장 정보와 요금, 운영시간, 주차 가능 대수를 확인할 수 있습니다.`;
+const pageUrl = 'https://parkingmap.kr/';
+---
+
+<BaseLayout
+  title={pageTitle}
+  description={pageDescription}
+  canonical={pageUrl}
+>
+  <Header />
+
+  <div class="max-w-3xl mx-auto">
+    <!-- 페이지 제목 -->
+    <div class="mb-8 text-center">
+      <h1 class="text-4xl font-black text-gray-900 mb-3">서울 무료주차장 · 공영주차장 지도</h1>
+      <p class="text-gray-500 text-lg">구 또는 동 이름을 입력하면 서울시 공영주차장 정보를 확인할 수 있습니다</p>
+    </div>
+
+    <!-- 검색 폼 -->
+    <div class="mb-6 relative">
+      <div class="flex gap-3">
+        <div class="flex-1 relative">
+          <input
+            id="search-input"
+            type="text"
+            placeholder="구 또는 동 이름을 입력하세요 (예: 강남구, 삼성동)"
+            class="w-full px-4 py-3 border-2 border-gray-200 rounded-xl text-base focus:outline-none focus:border-emerald-500 transition-colors"
+            autocomplete="off"
+          />
+          <!-- 자동완성 드롭다운 -->
+          <div id="autocomplete-dropdown" class="hidden absolute left-0 right-0 top-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg z-50 max-h-[320px] overflow-y-auto">
+          </div>
+        </div>
+        <button
+          id="search-btn"
+          class="px-6 py-3 bg-emerald-600 text-white font-semibold rounded-xl hover:bg-emerald-700 transition-colors shrink-0"
+        >
+          검색
+        </button>
+      </div>
+
+      <!-- 빠른 검색 태그 -->
+      <div class="flex flex-wrap gap-2 mt-3">
+        {['강남구', '서초구', '마포구', '송파구', '영등포구', '종로구', '용산구', '강서구'].map((gu) => (
+          <a
+            href={`/서울특별시/${gu}/`}
+            class="quick-search-tag px-3 py-1.5 text-sm bg-gray-100 text-gray-600 rounded-full hover:bg-emerald-50 hover:text-emerald-600 transition-colors"
+          >
+            {gu}
+          </a>
+        ))}
+      </div>
+    </div>
+
+
+    <!-- 로딩 표시 -->
+    <div id="loading-state" class="hidden text-center py-8">
+      <div class="inline-block w-8 h-8 border-4 border-emerald-200 border-t-emerald-600 rounded-full animate-spin"></div>
+      <p class="text-gray-500 mt-3">주차장 정보를 검색하고 있습니다...</p>
+    </div>
+
+    <!-- 검색 결과 헤더 (시도 검색 시 구별 요약) -->
+    <div id="summary-section" class="hidden mb-6">
+      <p class="text-sm text-gray-500 mb-3">
+        <span id="summary-title" class="font-semibold text-gray-900"></span>의 주차장 현황
+      </p>
+      <div id="summary-grid" class="grid grid-cols-2 sm:grid-cols-3 gap-2">
+      </div>
+    </div>
+
+    <!-- 검색 결과 -->
+    <div id="results-section" class="hidden">
+      <p class="text-sm text-gray-500 mb-4">
+        검색 결과: <span id="results-count" class="font-semibold text-gray-900">0</span>건
+        <span id="results-filter-info" class="text-gray-400"></span>
+      </p>
+
+      <div id="results-list" class="flex flex-col gap-4 mb-12">
+      </div>
+
+      <!-- 더보기 버튼 -->
+      <div id="load-more-wrapper" class="hidden text-center mb-12">
+        <button
+          id="load-more-btn"
+          class="px-8 py-3 bg-gray-100 text-gray-700 font-semibold rounded-xl hover:bg-gray-200 transition-colors"
+        >
+          더보기
+        </button>
+      </div>
+    </div>
+
+    <!-- 에러 표시 -->
+    <div id="error-state" class="hidden text-center py-12">
+      <div class="text-5xl mb-4">&#x26A0;&#xFE0F;</div>
+      <p id="error-message" class="text-gray-500 text-lg">오류가 발생했습니다</p>
+      <p class="text-gray-300 text-sm mt-2">잠시 후 다시 시도해주세요</p>
+    </div>
+
+    <!-- 검색 전 랜딩 콘텐츠 -->
+    <div id="empty-state">
+      <!-- 서울 구별 바로가기 -->
+      <div class="mb-8">
+        <h2 class="text-lg font-bold text-gray-900 mb-4">서울시 구별 주차장 찾기</h2>
+        <div class="grid grid-cols-3 sm:grid-cols-5 gap-2" id="region-grid">
+          {['강남구','강동구','강북구','강서구','관악구','광진구','구로구','금천구','노원구','도봉구','동대문구','동작구','마포구','서대문구','서초구','성동구','성북구','송파구','양천구','영등포구','용산구','은평구','종로구','중구','중랑구'].map((gu) => (
+            <a href={`/서울특별시/${gu}/`} class="group p-3 bg-white border border-gray-200 rounded-xl hover:border-emerald-400 hover:shadow-md transition-all text-center">
+              <p class="text-sm font-bold text-gray-800 group-hover:text-emerald-600">{gu}</p>
+            </a>
+          ))}
+        </div>
+      </div>
+
+      <!-- 서비스 안내 카드 -->
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-8">
+        <div class="p-5 bg-emerald-50 rounded-2xl text-center">
+          <div class="text-3xl mb-2">&#x1F50D;</div>
+          <p class="font-bold text-emerald-800 text-sm mb-1">지역 검색</p>
+          <p class="text-xs text-emerald-600">동/구/시 이름으로<br/>빠르게 검색</p>
+        </div>
+        <div class="p-5 bg-blue-50 rounded-2xl text-center">
+          <div class="text-3xl mb-2">&#x1F5FA;&#xFE0F;</div>
+          <p class="font-bold text-blue-800 text-sm mb-1">지도에서 확인</p>
+          <p class="text-xs text-blue-600">네이버 지도로<br/>위치 바로 확인</p>
+        </div>
+        <div class="p-5 bg-amber-50 rounded-2xl text-center">
+          <div class="text-3xl mb-2">&#x1F4B0;</div>
+          <p class="font-bold text-amber-800 text-sm mb-1">무료 주차장</p>
+          <p class="text-xs text-amber-600">무료/유료 구분으로<br/>알뜰하게 주차</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- 데이터 출처 안내 -->
+    <div class="mt-8 mb-4 p-4 bg-gray-50 rounded-xl text-xs text-gray-400 text-center">
+      <p>데이터 출처: 공공데이터포털 (data.go.kr) - 전국주차장정보 표준데이터</p>
+      <p class="mt-1">실제 운영 상황과 다를 수 있으니 방문 전 확인 바랍니다</p>
+    </div>
+  </div>
+</BaseLayout>
+
+<script is:inline>
+  // === 전역 상태 ===
+  var autocompleteData = null;
+  var currentResults = [];
+  var displayedCount = 0;
+  var PAGE_SIZE = 30;
+  var selectedAutocompleteItem = null;
+
+  // 시도 약칭 → 정식명 매핑
+  var SIDO_SHORT_TO_FULL = {
+    '서울': '서울특별시', '부산': '부산광역시', '대구': '대구광역시',
+    '인천': '인천광역시', '광주': '광주광역시', '대전': '대전광역시',
+    '울산': '울산광역시', '세종': '세종특별자치시',
+    '경기': '경기도', '강원': '강원특별자치도',
+    '충북': '충청북도', '충남': '충청남도',
+    '전북': '전북특별자치도', '전남': '전라남도',
+    '경북': '경상북도', '경남': '경상남도', '제주': '제주특별자치도',
+  };
+
+  // DOM 요소
+  var searchInput = document.getElementById('search-input');
+  var searchBtn = document.getElementById('search-btn');
+  var dropdown = document.getElementById('autocomplete-dropdown');
+  var resultsSection = document.getElementById('results-section');
+  var resultsList = document.getElementById('results-list');
+  var resultsCount = document.getElementById('results-count');
+  var resultsFilterInfo = document.getElementById('results-filter-info');
+  var summarySection = document.getElementById('summary-section');
+  var summaryTitle = document.getElementById('summary-title');
+  var summaryGrid = document.getElementById('summary-grid');
+  var emptyState = document.getElementById('empty-state');
+  var loadingState = document.getElementById('loading-state');
+  var errorState = document.getElementById('error-state');
+  var errorMessage = document.getElementById('error-message');
+  var loadMoreWrapper = document.getElementById('load-more-wrapper');
+  var loadMoreBtn = document.getElementById('load-more-btn');
+
+  // === 자동완성 데이터 로드 ===
+  function loadAutocomplete() {
+    fetch('/data/parking-autocomplete.json')
+      .then(function(res) { return res.json(); })
+      .then(function(data) {
+        autocompleteData = data;
+      })
+      .catch(function(err) {
+        console.error('자동완성 데이터 로드 실패:', err);
+      });
+  }
+  loadAutocomplete();
+
+  // === 자동완성 검색 ===
+  function searchAutocomplete(query) {
+    if (!autocompleteData || !query || query.length < 1) return [];
+
+    var q = query.trim().toLowerCase();
+    var results = [];
+
+    // 시도 약칭 매칭
+    var sidoFull = SIDO_SHORT_TO_FULL[q] || SIDO_SHORT_TO_FULL[query.trim()];
+
+    for (var i = 0; i < autocompleteData.length; i++) {
+      var item = autocompleteData[i];
+      var label = item.label.toLowerCase();
+      var short = (item.short || '').toLowerCase();
+      var full = (item.full || '').toLowerCase();
+
+      if (label.indexOf(q) !== -1 || short === q || full.indexOf(q) !== -1) {
+        results.push(item);
+      }
+
+      if (results.length >= 15) break;
+    }
+
+    // 정렬: type 우선순위 (sido > sigungu > dong), 건수 내림차순
+    var typeOrder = { 'sido': 0, 'sigungu': 1, 'dong': 2 };
+    results.sort(function(a, b) {
+      var ta = typeOrder[a.type] || 3;
+      var tb = typeOrder[b.type] || 3;
+      if (ta !== tb) return ta - tb;
+      return b.count - a.count;
+    });
+
+    return results.slice(0, 10);
+  }
+
+  // === 동 상세 페이지 URL 생성 ===
+  function getDongPageUrl(sido, sigungu, dong) {
+    return '/' + encodeURIComponent(sido) + '/' + encodeURIComponent(sigungu) + '/' + encodeURIComponent(dong) + '/';
+  }
+
+  // === 시군구 서브디렉토리 페이지 URL 생성 ===
+  function getSigunguPageUrl(sido, sigungu) {
+    return '/' + encodeURIComponent(sido) + '/' + encodeURIComponent(sigungu) + '/';
+  }
+
+  // === 시도 서브디렉토리 페이지 URL 생성 ===
+  function getSidoPageUrl(sido) {
+    return '/' + encodeURIComponent(sido) + '/';
+  }
+
+  // === 자동완성 드롭다운 렌더링 ===
+  function renderDropdown(items) {
+    if (items.length === 0) {
+      dropdown.classList.add('hidden');
+      return;
+    }
+
+    var typeLabels = { 'sido': '시/도', 'sigungu': '시/군/구', 'dong': '읍/면/동' };
+
+    dropdown.innerHTML = items.map(function(item, i) {
+      var desc = '';
+      if (item.type === 'dong') {
+        desc = item.desc || '';
+      } else if (item.type === 'sigungu') {
+        desc = item.sido || '';
+      }
+
+      return '<button class="ac-item w-full text-left px-4 py-3 hover:bg-emerald-50 transition-colors flex items-center justify-between gap-2 ' + (i === 0 ? 'rounded-t-xl' : '') + (i === items.length - 1 ? 'rounded-b-xl' : '') + ' border-b border-gray-50" data-index="' + i + '">' +
+        '<div class="flex items-center gap-2 min-w-0">' +
+          '<span class="font-semibold text-gray-900 truncate">' + item.label + '</span>' +
+          (desc ? '<span class="text-xs text-gray-400 shrink-0">' + desc + '</span>' : '') +
+        '</div>' +
+        '<div class="flex items-center gap-2 shrink-0">' +
+          '<span class="text-xs text-gray-400">' + item.count + '건</span>' +
+          '<span class="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 text-gray-500">' + typeLabels[item.type] + '</span>' +
+        '</div>' +
+      '</button>';
+    }).join('');
+
+    dropdown.classList.remove('hidden');
+
+    // 클릭 이벤트
+    dropdown.querySelectorAll('.ac-item').forEach(function(btn) {
+      btn.addEventListener('click', function(e) {
+        e.preventDefault();
+        var idx = parseInt(btn.getAttribute('data-index'));
+        var item = items[idx];
+        selectedAutocompleteItem = item;
+        searchInput.value = item.label;
+        dropdown.classList.add('hidden');
+        performSearch();
+      });
+    });
+  }
+
+  // === 안전한 파일명 생성 (Python safe_filename과 동일 로직) ===
+  function safeFilename(name) {
+    return name.replace(/[^\w가-힣-]/g, '_').replace(/^_+|_+$/g, '');
+  }
+
+  // === JSON 파일 경로 계산 ===
+  function getJsonPath(sido, sigungu) {
+    var safeSido = safeFilename(sido);
+    var safeSg = safeFilename(sigungu || sido);
+    return '/data/parking/' + safeSido + '/' + safeSg + '.json';
+  }
+
+  // === 주차장 데이터 로드 ===
+  function loadParkingData(sido, sigungu) {
+    var path = getJsonPath(sido, sigungu);
+    return fetch(path)
+      .then(function(res) {
+        if (!res.ok) throw new Error('데이터를 찾을 수 없습니다');
+        return res.json();
+      });
+  }
+
+
+  // === UI 상태 관리 ===
+  function showLoading() {
+    loadingState.classList.remove('hidden');
+    resultsSection.classList.add('hidden');
+    summarySection.classList.add('hidden');
+    emptyState.classList.add('hidden');
+    errorState.classList.add('hidden');
+  }
+
+  function hideLoading() {
+    loadingState.classList.add('hidden');
+  }
+
+  function showError(msg) {
+    hideLoading();
+    errorState.classList.remove('hidden');
+    resultsSection.classList.add('hidden');
+    summarySection.classList.add('hidden');
+    emptyState.classList.add('hidden');
+    errorMessage.textContent = msg;
+  }
+
+  // === 시도 검색: 구별 요약 + 대표 주차장 ===
+  function handleSidoSearch(sido) {
+    showLoading();
+
+    // 자동완성 데이터에서 해당 시도의 시군구 목록 찾기
+    var sigungus = autocompleteData.filter(function(item) {
+      return item.type === 'sigungu' && item.sido === sido;
+    }).sort(function(a, b) { return b.count - a.count; });
+
+    if (sigungus.length === 0) {
+      loadParkingData(sido, sido).then(function(data) {
+        hideLoading();
+        showResults(data.items, sido);
+      }).catch(function(err) {
+        showError('데이터를 불러올 수 없습니다.');
+      });
+      return;
+    }
+
+    // 시도 약칭으로 표시
+    var sidoShort = '';
+    for (var k in SIDO_SHORT_TO_FULL) {
+      if (SIDO_SHORT_TO_FULL[k] === sido) { sidoShort = k; break; }
+    }
+    summaryTitle.textContent = sidoShort || sido;
+
+    // 구별 카드 표시
+    summaryGrid.innerHTML = sigungus.map(function(sg) {
+      return '<button class="sg-card text-left p-3 bg-white border border-gray-200 rounded-xl hover:border-emerald-400 hover:shadow-sm transition-all" data-sido="' + sg.sido + '" data-sigungu="' + sg.label + '">' +
+        '<p class="font-semibold text-gray-900 text-sm">' + sg.label + '</p>' +
+        '<p class="text-xs text-gray-400 mt-0.5">' + sg.count + '개 주차장</p>' +
+      '</button>';
+    }).join('');
+
+    // 구별 카드 클릭 이벤트
+    summaryGrid.querySelectorAll('.sg-card').forEach(function(card) {
+      card.addEventListener('click', function() {
+        var sgSido = card.getAttribute('data-sido');
+        var sgName = card.getAttribute('data-sigungu');
+        window.location.href = getSigunguPageUrl(sgSido, sgName);
+      });
+    });
+
+    summarySection.classList.remove('hidden');
+
+    hideLoading();
+    summarySection.classList.remove('hidden');
+    emptyState.classList.add('hidden');
+    resultsSection.classList.add('hidden');
+  }
+
+  // === 시군구/동 검색: 상세 결과 ===
+  function handleDetailSearch(sido, sigungu, dong) {
+    showLoading();
+    summarySection.classList.add('hidden');
+
+    loadParkingData(sido, sigungu).then(function(data) {
+      hideLoading();
+      var items = data.items;
+
+      if (dong) {
+        items = items.filter(function(lot) { return lot.dong === dong; });
+      }
+
+      currentResults = items;
+      displayedCount = Math.min(PAGE_SIZE, items.length);
+      showResults(items, dong || sigungu);
+    }).catch(function(err) {
+      showError('해당 지역의 주차장 데이터를 찾을 수 없습니다.');
+    });
+  }
+
+  // === 결과 표시 ===
+  function showResults(items, label) {
+    if (items.length === 0) {
+      resultsSection.classList.remove('hidden');
+      emptyState.classList.add('hidden');
+      resultsCount.textContent = '0';
+      resultsFilterInfo.textContent = '';
+      loadMoreWrapper.classList.add('hidden');
+      resultsList.innerHTML = '<div class="text-center py-12"><p class="text-gray-400 text-lg">검색 결과가 없습니다</p><p class="text-gray-300 text-sm mt-1">다른 지역명으로 검색해보세요</p></div>';
+      return;
+    }
+
+    resultsSection.classList.remove('hidden');
+    emptyState.classList.add('hidden');
+    resultsCount.textContent = items.length;
+    resultsFilterInfo.textContent = '';
+
+    var toShow = items.slice(0, displayedCount);
+    resultsList.innerHTML = toShow.map(function(lot, i) {
+      return renderCard(lot, i, false);
+    }).join('');
+
+    bindCardEvents(toShow);
+
+    // 더보기 버튼
+    if (displayedCount < items.length) {
+      loadMoreWrapper.classList.remove('hidden');
+    } else {
+      loadMoreWrapper.classList.add('hidden');
+    }
+  }
+
+  // === 카드 렌더링 ===
+  function renderCard(lot, index, isSummary) {
+    var areaInfo = '';
+    if (isSummary && lot._sigungu) {
+      areaInfo = '<span class="text-xs text-emerald-600 font-semibold bg-emerald-50 px-2 py-0.5 rounded-md">' + lot._sigungu + ' 대표 (' + lot._totalInArea + '건)</span>';
+    }
+
+    return '<div class="parking-card p-5 border border-gray-200 rounded-2xl hover:border-emerald-200 hover:shadow-md transition-all cursor-pointer" data-index="' + index + '">' +
+      '<div class="flex items-start justify-between gap-4">' +
+        '<div class="flex-1 min-w-0">' +
+          '<div class="flex items-center gap-2 mb-1.5 flex-wrap">' +
+            '<h3 class="font-bold text-gray-900 text-lg truncate">' + lot.name + '</h3>' +
+            '<span class="shrink-0 px-2 py-0.5 text-xs font-semibold rounded-md ' + (lot.isFree ? 'bg-emerald-50 text-emerald-600' : 'bg-blue-50 text-blue-600') + '">' +
+              (lot.isFree ? '무료' : '유료') +
+            '</span>' +
+            '<span class="shrink-0 px-2 py-0.5 text-xs font-medium rounded-md bg-gray-100 text-gray-500">' +
+              lot.type + (lot.category ? ' / ' + lot.category : '') +
+            '</span>' +
+            areaInfo +
+          '</div>' +
+          '<p class="text-sm text-gray-500 mb-3">' + lot.address + '</p>' +
+          '<div class="flex flex-wrap gap-x-5 gap-y-1 text-sm text-gray-600">' +
+            '<span class="flex items-center gap-1.5">' +
+              '<svg class="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>' +
+              (lot.weekdayOpen || '-') + '~' + (lot.weekdayClose || '-') +
+            '</span>' +
+            (lot.totalSpaces ? '<span class="flex items-center gap-1.5"><svg class="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>주차면 ' + lot.totalSpaces + '면</span>' : '') +
+            (lot.feeInfo ? '<span class="flex items-center gap-1.5"><svg class="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>' + lot.feeInfo + '</span>' : '') +
+            (lot.phone ? '<span class="flex items-center gap-1.5"><svg class="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/></svg>' + lot.phone + '</span>' : '') +
+          '</div>' +
+          '<div class="flex gap-2 mt-3">' +
+            '<a href="https://map.naver.com/p/search/' + encodeURIComponent(lot.address) + '" target="_blank" class="map-link inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-green-700 bg-green-50 rounded-lg hover:bg-green-100 transition-colors">' +
+              '<svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>' +
+              '네이버지도' +
+            '</a>' +
+            '<a href="https://map.kakao.com/link/map/' + encodeURIComponent(lot.name) + ',' + lot.lat + ',' + lot.lng + '" target="_blank" class="map-link inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-yellow-800 bg-yellow-50 rounded-lg hover:bg-yellow-100 transition-colors">' +
+              '<svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>' +
+              '카카오맵' +
+            '</a>' +
+          '</div>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+  }
+
+  // === 카드 클릭 이벤트 바인딩 ===
+  function bindCardEvents(items) {
+    document.querySelectorAll('.parking-card').forEach(function(card) {
+      card.addEventListener('click', function(e) {
+        if (e.target.closest('.map-link')) return;
+        // 카드 클릭 시 추가 동작 없음 (링크 버튼 사용)
+      });
+    });
+  }
+
+  // === 메인 검색 로직 ===
+  function performSearch() {
+    var query = searchInput.value.trim();
+    if (!query) return;
+
+    dropdown.classList.add('hidden');
+
+    // 자동완성 항목이 선택된 경우
+    if (selectedAutocompleteItem) {
+      var item = selectedAutocompleteItem;
+      selectedAutocompleteItem = null;
+
+      if (item.type === 'sido') {
+        window.location.href = getSidoPageUrl(item.label);
+      } else if (item.type === 'sigungu') {
+        window.location.href = getSigunguPageUrl(item.sido, item.label);
+      } else if (item.type === 'dong') {
+        window.location.href = getDongPageUrl(item.sido, item.sigungu, item.label);
+      }
+      return;
+    }
+
+    // 자동완성 미선택 → 직접 입력 검색
+    // 약칭 매핑 시도
+    var sidoFull = SIDO_SHORT_TO_FULL[query];
+    if (sidoFull) {
+      window.location.href = getSidoPageUrl(sidoFull);
+      return;
+    }
+
+    // 자동완성 데이터에서 가장 적합한 항목 찾기
+    if (!autocompleteData) {
+      showError('자동완성 데이터를 불러오는 중입니다. 잠시 후 다시 시도해주세요.');
+      return;
+    }
+
+    // 정확 매치 시도
+    var exactMatch = null;
+    for (var i = 0; i < autocompleteData.length; i++) {
+      var ac = autocompleteData[i];
+      if (ac.label === query || ac.short === query) {
+        exactMatch = ac;
+        break;
+      }
+    }
+
+    if (exactMatch) {
+      if (exactMatch.type === 'sido') {
+        window.location.href = getSidoPageUrl(exactMatch.label);
+      } else if (exactMatch.type === 'sigungu') {
+        window.location.href = getSigunguPageUrl(exactMatch.sido, exactMatch.label);
+      } else if (exactMatch.type === 'dong') {
+        window.location.href = getDongPageUrl(exactMatch.sido, exactMatch.sigungu, exactMatch.label);
+      }
+      return;
+    }
+
+    // 부분 매치
+    var partialMatches = searchAutocomplete(query);
+    if (partialMatches.length > 0) {
+      var best = partialMatches[0];
+      if (best.type === 'sido') {
+        window.location.href = getSidoPageUrl(best.label);
+      } else if (best.type === 'sigungu') {
+        window.location.href = getSigunguPageUrl(best.sido, best.label);
+      } else if (best.type === 'dong') {
+        window.location.href = getDongPageUrl(best.sido, best.sigungu, best.label);
+      }
+      return;
+    }
+
+    showError('"' + query + '"에 해당하는 지역을 찾을 수 없습니다.');
+  }
+
+  // === 이벤트 리스너 ===
+
+  // 검색 버튼
+  searchBtn.addEventListener('click', function() { performSearch(); });
+  searchInput.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      performSearch();
+    }
+  });
+
+  // 자동완성 입력
+  var acDebounceTimer = null;
+  searchInput.addEventListener('input', function() {
+    clearTimeout(acDebounceTimer);
+    selectedAutocompleteItem = null;
+    var q = searchInput.value.trim();
+
+    if (q.length < 1) {
+      dropdown.classList.add('hidden');
+      return;
+    }
+
+    acDebounceTimer = setTimeout(function() {
+      var results = searchAutocomplete(q);
+      renderDropdown(results);
+    }, 150);
+  });
+
+  // 드롭다운 외부 클릭 시 닫기
+  document.addEventListener('click', function(e) {
+    if (!e.target.closest('#search-input') && !e.target.closest('#autocomplete-dropdown')) {
+      dropdown.classList.add('hidden');
+    }
+  });
+
+  // 포커스 시 드롭다운 다시 표시
+  searchInput.addEventListener('focus', function() {
+    var q = searchInput.value.trim();
+    if (q.length >= 1 && autocompleteData) {
+      var results = searchAutocomplete(q);
+      if (results.length > 0) renderDropdown(results);
+    }
+  });
+
+  // 더보기 버튼
+  loadMoreBtn.addEventListener('click', function() {
+    displayedCount = Math.min(displayedCount + PAGE_SIZE, currentResults.length);
+    showResults(currentResults, '');
+  });
+
+  // 빠른 검색 태그는 <a> 링크로 변경되어 JS 이벤트 불필요
+</script>
