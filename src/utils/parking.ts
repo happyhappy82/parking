@@ -5,6 +5,7 @@ export interface ParkingLot {
   type: string;           // 주차장구분 (공영/민영)
   category: string;       // 주차장유형 (노외/노상/부설)
   address: string;        // 소재지주소
+  roadAddress?: string;   // 도로명주소
   lat: number;            // 위도
   lng: number;            // 경도
   totalSpaces: number;    // 주차구획수
@@ -17,8 +18,16 @@ export interface ParkingLot {
   holidayOpen: string;    // 공휴일운영시작
   holidayClose: string;   // 공휴일운영종료
   feeInfo: string;        // 요금정보
+  basicTime?: number;     // 기본주차시간(분)
+  basicCharge?: number;   // 기본주차요금(원)
+  addUnitTime?: number;   // 추가단위시간(분)
+  addUnitCharge?: number; // 추가단위요금(원)
+  monthlyPass?: number;   // 월정기권금액
   phone: string;          // 전화번호
   updatedAt: string;      // 데이터기준일자
+  sido?: string;          // 시도
+  sigungu?: string;       // 시군구
+  dong?: string;          // 읍면동
 }
 
 export interface ParkingAPIResponse {
