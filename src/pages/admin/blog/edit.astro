@@ -10,46 +10,60 @@ export const prerender = false;
   <title>블로그 글 편집 | ParkingMap Admin</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f5f5; color: #111; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f8f9fa; color: #111; }
     .sidebar {
-      position: fixed; top: 0; left: 0; width: 240px; height: 100vh;
-      background: #1a1a2e; color: white; padding: 24px 0;
+      position: fixed; top: 0; left: 0; width: 220px; height: 100vh;
+      background: #1a1a2e; color: white; padding: 20px 0;
     }
-    .sidebar .logo { padding: 0 24px; font-size: 20px; font-weight: 800; margin-bottom: 32px; }
+    .sidebar .logo { padding: 0 20px; font-size: 18px; font-weight: 800; margin-bottom: 28px; }
     .sidebar .logo span { color: #34d399; }
     .sidebar nav a {
-      display: flex; align-items: center; gap: 10px;
-      padding: 12px 24px; color: #aaa; text-decoration: none;
-      font-size: 14px; transition: all 0.2s;
+      display: block; padding: 11px 20px; color: #94a3b8; text-decoration: none;
+      font-size: 13px; font-weight: 500; transition: all 0.2s;
     }
     .sidebar nav a:hover, .sidebar nav a.active { color: white; background: rgba(255,255,255,0.08); }
     .sidebar nav a.active { border-left: 3px solid #34d399; }
-    .main { margin-left: 240px; padding: 32px 40px; max-width: 900px; }
-    .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
-    .header h1 { font-size: 24px; font-weight: 800; }
-    .form-group { margin-bottom: 20px; }
-    .form-group label { display: block; font-size: 14px; font-weight: 600; color: #333; margin-bottom: 8px; }
+    .main { margin-left: 220px; padding: 28px 32px; max-width: 960px; }
+    .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+    .header h1 { font-size: 20px; font-weight: 800; }
+    .header-sub { font-size: 12px; color: #94a3b8; margin-top: 2px; }
+    .form-group { margin-bottom: 16px; }
+    .form-group label { display: block; font-size: 13px; font-weight: 600; color: #475569; margin-bottom: 6px; }
     .form-group input, .form-group textarea {
-      width: 100%; padding: 12px 16px; border: 1px solid #ddd;
-      border-radius: 8px; font-size: 14px; outline: none;
-      font-family: inherit; transition: border-color 0.2s;
+      width: 100%; padding: 10px 14px; border: 1px solid #e2e8f0;
+      border-radius: 6px; font-size: 14px; outline: none;
+      font-family: inherit; transition: border-color 0.15s;
     }
-    .form-group input:focus, .form-group textarea:focus { border-color: #059669; }
-    .form-group textarea { min-height: 400px; font-family: 'SF Mono', 'Fira Code', monospace; font-size: 13px; line-height: 1.6; resize: vertical; }
-    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-    .btn { display: inline-block; padding: 12px 24px; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.2s; text-decoration: none; }
+    .form-group input:focus, .form-group textarea:focus { border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59,130,246,0.1); }
+    .form-group textarea {
+      min-height: 500px; font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+      font-size: 13px; line-height: 1.6; resize: vertical; tab-size: 2;
+    }
+    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .btn {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 10px 20px; border: none; border-radius: 6px;
+      font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.15s;
+      text-decoration: none;
+    }
     .btn-primary { background: #059669; color: white; }
     .btn-primary:hover { background: #047857; }
-    .btn-gray { background: #e5e7eb; color: #374151; }
-    .btn-gray:hover { background: #d1d5db; }
-    .btn-red { background: #fee2e2; color: #dc2626; }
-    .btn-red:hover { background: #fecaca; }
+    .btn-back { background: #f1f5f9; color: #475569; }
+    .btn-back:hover { background: #e2e8f0; }
+    .btn-red { background: #fef2f2; color: #dc2626; }
+    .btn-red:hover { background: #fee2e2; }
     .btn:disabled { opacity: 0.5; cursor: not-allowed; }
-    .actions { display: flex; gap: 12px; margin-top: 24px; }
-    .msg { padding: 12px 16px; border-radius: 8px; font-size: 14px; margin-top: 16px; display: none; }
+    .actions { display: flex; gap: 10px; margin-top: 20px; }
+    .msg { padding: 10px 14px; border-radius: 6px; font-size: 13px; margin-top: 12px; display: none; }
     .msg-success { background: #d1fae5; color: #065f46; }
     .msg-error { background: #fee2e2; color: #dc2626; }
-    .loading { text-align: center; padding: 60px; color: #888; }
+    .loading { text-align: center; padding: 60px; color: #94a3b8; font-size: 14px; }
+    .type-badge {
+      display: inline-block; padding: 3px 10px; border-radius: 4px;
+      font-size: 11px; font-weight: 700; margin-left: 8px;
+    }
+    .type-astro { background: #ede9fe; color: #7c3aed; }
+    .type-md { background: #d1fae5; color: #059669; }
   </style>
 </head>
 <body>
@@ -65,64 +79,142 @@ export const prerender = false;
 
   <div class="main">
     <div class="header">
-      <h1>블로그 글 편집</h1>
-      <a href="/admin/blog/" class="btn btn-gray">목록으로</a>
+      <div>
+        <h1 id="pageTitle">블로그 글 편집</h1>
+        <p class="header-sub" id="filePath"></p>
+      </div>
+      <a href="/admin/blog/" class="btn btn-back">← 목록으로</a>
     </div>
 
     <div id="loadingState" class="loading">불러오는 중...</div>
 
-    <form id="blogForm" style="display:none;">
+    <!-- 마크다운 편집 폼 -->
+    <form id="mdForm" style="display:none;">
       <div class="form-group">
-        <label for="title">제목</label>
+        <label>제목</label>
         <input type="text" id="title" required />
       </div>
-
       <div class="form-row">
         <div class="form-group">
-          <label for="slug">슬러그 (URL) — 변경 불가</label>
-          <input type="text" id="slug" readonly style="background:#f5f5f5;" />
+          <label>슬러그 (URL) — 변경 불가</label>
+          <input type="text" id="slug" readonly style="background:#f8fafc; color:#94a3b8;" />
         </div>
         <div class="form-group">
-          <label for="date">날짜</label>
+          <label>날짜</label>
           <input type="date" id="date" required />
         </div>
       </div>
-
       <div class="form-group">
-        <label for="description">설명 (SEO)</label>
+        <label>설명 (SEO)</label>
         <input type="text" id="description" required />
       </div>
-
       <div class="form-group">
-        <label for="content">본문 (Markdown)</label>
+        <label>본문 (Markdown)</label>
         <textarea id="content" required></textarea>
       </div>
-
       <div class="actions">
-        <button type="submit" class="btn btn-primary" id="saveBtn">변경사항 저장</button>
-        <button type="button" class="btn btn-red" id="deleteBtn">삭제</button>
+        <button type="submit" class="btn btn-primary" id="mdSaveBtn">저장</button>
+        <button type="button" class="btn btn-red" id="mdDeleteBtn">삭제</button>
       </div>
+      <div class="msg msg-success" id="mdSuccess"></div>
+      <div class="msg msg-error" id="mdError"></div>
+    </form>
 
-      <div class="msg msg-success" id="successMsg"></div>
-      <div class="msg msg-error" id="errorMsg"></div>
+    <!-- 레거시(.astro) 편집 폼 -->
+    <form id="legacyForm" style="display:none;">
+      <div class="form-group">
+        <label>소스 코드 (.astro)</label>
+        <textarea id="legacyContent" style="min-height:600px;"></textarea>
+      </div>
+      <div class="actions">
+        <button type="submit" class="btn btn-primary" id="legacySaveBtn">GitHub에 저장</button>
+        <a href="/admin/blog/" class="btn btn-back">취소</a>
+      </div>
+      <div class="msg msg-success" id="legacySuccess"></div>
+      <div class="msg msg-error" id="legacyError"></div>
     </form>
   </div>
 
   <script is:inline>
     const params = new URLSearchParams(window.location.search);
     const slug = params.get('slug');
+    const type = params.get('type');
+    const isLegacy = type === 'legacy';
 
     if (!slug) {
       document.getElementById('loadingState').textContent = '슬러그가 지정되지 않았습니다.';
+    } else if (isLegacy) {
+      loadLegacy(slug);
     } else {
-      loadPost(slug);
+      loadMarkdown(slug);
     }
 
-    async function loadPost(slug) {
-      try {
-        const res = await fetch(`/api/admin/blog/?slug=${slug}`);
-        const data = await res.json();
+    // --- 레거시 (.astro) 편집 ---
+    async function loadLegacy(slug) {
+      const titleEl = document.getElementById('pageTitle');
+      const pathEl = document.getElementById('filePath');
+      const filePath = 'src/pages/blog/' + slug + '.astro';
 
+      titleEl.innerHTML = slug + ' <span class="type-badge type-astro">Astro</span>';
+      pathEl.textContent = filePath;
+
+      try {
+        const res = await fetch('/api/admin/blog/?slug=' + slug + '&type=legacy');
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+
+        document.getElementById('legacyContent').value = data.content;
+        document.getElementById('loadingState').style.display = 'none';
+        document.getElementById('legacyForm').style.display = 'block';
+      } catch (e) {
+        document.getElementById('loadingState').textContent = '로드 실패: ' + e.message;
+      }
+    }
+
+    document.getElementById('legacyForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const btn = document.getElementById('legacySaveBtn');
+      const ok = document.getElementById('legacySuccess');
+      const err = document.getElementById('legacyError');
+
+      btn.disabled = true; btn.textContent = '저장 중...';
+      ok.style.display = 'none'; err.style.display = 'none';
+
+      try {
+        const res = await fetch('/api/admin/blog/', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            slug: slug,
+            type: 'legacy',
+            content: document.getElementById('legacyContent').value,
+          }),
+        });
+        const result = await res.json();
+        if (res.ok) {
+          ok.textContent = '저장 완료! Vercel 자동 배포가 시작됩니다.';
+          ok.style.display = 'block';
+        } else {
+          err.textContent = result.error || '저장 실패';
+          err.style.display = 'block';
+        }
+      } catch (ex) {
+        err.textContent = '서버 오류: ' + ex.message;
+        err.style.display = 'block';
+      } finally {
+        btn.disabled = false; btn.textContent = 'GitHub에 저장';
+      }
+    });
+
+    // --- 마크다운 편집 ---
+    async function loadMarkdown(slug) {
+      const titleEl = document.getElementById('pageTitle');
+      titleEl.innerHTML = '블로그 글 편집 <span class="type-badge type-md">Markdown</span>';
+      document.getElementById('filePath').textContent = 'src/content/blog/' + slug + '.md';
+
+      try {
+        const res = await fetch('/api/admin/blog/?slug=' + slug);
+        const data = await res.json();
         if (!res.ok) throw new Error(data.error);
 
         document.getElementById('title').value = data.title;
@@ -132,23 +224,20 @@ export const prerender = false;
         document.getElementById('content').value = data.content;
 
         document.getElementById('loadingState').style.display = 'none';
-        document.getElementById('blogForm').style.display = 'block';
+        document.getElementById('mdForm').style.display = 'block';
       } catch (e) {
         document.getElementById('loadingState').textContent = '로드 실패: ' + e.message;
       }
     }
 
-    // 저장
-    document.getElementById('blogForm').addEventListener('submit', async (e) => {
+    document.getElementById('mdForm').addEventListener('submit', async (e) => {
       e.preventDefault();
-      const btn = document.getElementById('saveBtn');
-      const successMsg = document.getElementById('successMsg');
-      const errorMsg = document.getElementById('errorMsg');
+      const btn = document.getElementById('mdSaveBtn');
+      const ok = document.getElementById('mdSuccess');
+      const err = document.getElementById('mdError');
 
-      btn.disabled = true;
-      btn.textContent = '저장 중...';
-      successMsg.style.display = 'none';
-      errorMsg.style.display = 'none';
+      btn.disabled = true; btn.textContent = '저장 중...';
+      ok.style.display = 'none'; err.style.display = 'none';
 
       try {
         const res = await fetch('/api/admin/blog/', {
@@ -162,46 +251,38 @@ export const prerender = false;
             content: document.getElementById('content').value,
           }),
         });
-
         const result = await res.json();
-
         if (res.ok) {
-          successMsg.textContent = '저장 완료!';
-          successMsg.style.display = 'block';
+          ok.textContent = '저장 완료!';
+          ok.style.display = 'block';
         } else {
-          errorMsg.textContent = result.error || '저장 실패';
-          errorMsg.style.display = 'block';
+          err.textContent = result.error || '저장 실패';
+          err.style.display = 'block';
         }
-      } catch (err) {
-        errorMsg.textContent = '서버 오류: ' + err.message;
-        errorMsg.style.display = 'block';
+      } catch (ex) {
+        err.textContent = '서버 오류: ' + ex.message;
+        err.style.display = 'block';
       } finally {
-        btn.disabled = false;
-        btn.textContent = '변경사항 저장';
+        btn.disabled = false; btn.textContent = '저장';
       }
     });
 
-    // 삭제
-    document.getElementById('deleteBtn').addEventListener('click', async () => {
-      if (!confirm('정말 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.')) return;
-
+    document.getElementById('mdDeleteBtn').addEventListener('click', async () => {
+      if (!confirm('정말 삭제하시겠습니까?')) return;
       try {
         const res = await fetch('/api/admin/blog/', {
           method: 'DELETE',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ slug: document.getElementById('slug').value }),
         });
-
         if (res.ok) {
           alert('삭제 완료!');
           window.location.href = '/admin/blog/';
         } else {
-          const result = await res.json();
-          alert('삭제 실패: ' + (result.error || ''));
+          const r = await res.json();
+          alert('삭제 실패: ' + (r.error || ''));
         }
-      } catch (err) {
-        alert('서버 오류: ' + err.message);
-      }
+      } catch (ex) { alert('서버 오류: ' + ex.message); }
     });
   </script>
 </body>

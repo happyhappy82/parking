@@ -4,6 +4,7 @@ import type { APIRoute } from 'astro';
 import { getFile, saveFile, deleteFile, listFiles } from '../../../utils/github';
 
 const BLOG_PATH = 'src/content/blog';
+const LEGACY_PATH = 'src/pages/blog';
 
 // 기존 하드코딩 블로그 목록
 const LEGACY_POSTS = [
@@ -47,10 +48,17 @@ ${data.content}`;
 // GET: 목록 or 개별 조회
 export const GET: APIRoute = async ({ url }) => {
   const slug = url.searchParams.get('slug');
+  const type = url.searchParams.get('type');
 
   try {
     if (slug) {
-      // 개별 조회
+      // 레거시 (.astro) 개별 조회
+      if (type === 'legacy') {
+        const { content } = await getFile(`${LEGACY_PATH}/${slug}.astro`);
+        return json({ slug, content });
+      }
+
+      // 마크다운 개별 조회
       const { content } = await getFile(`${BLOG_PATH}/${slug}.md`);
       const { meta, body } = parseFrontmatter(content);
       return json({
@@ -126,10 +134,19 @@ export const POST: APIRoute = async ({ request }) => {
 export const PUT: APIRoute = async ({ request }) => {
   try {
     const data = await request.json();
-    const { slug, title, description, date, content } = data;
+    const { slug, type, title, description, date, content } = data;
 
     if (!slug) return json({ error: '슬러그가 필요합니다.' }, 400);
 
+    // 레거시 (.astro) 수정
+    if (type === 'legacy') {
+      const filePath = `${LEGACY_PATH}/${slug}.astro`;
+      const existing = await getFile(filePath);
+      await saveFile(filePath, content, `blog: ${slug}.astro 수정`, existing.sha);
+      return json({ success: true });
+    }
+
+    // 마크다운 수정
     const filePath = `${BLOG_PATH}/${slug}.md`;
     const existing = await getFile(filePath);
     const markdown = buildMarkdown({ title, description, date, content });
