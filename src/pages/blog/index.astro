@@ -1,4 +1,5 @@
 ---
+import { getCollection } from 'astro:content';
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import Header from '../../components/Header.astro';
 
@@ -11,7 +12,8 @@ const breadcrumbs = [
   { name: '블로그', url: canonical },
 ];
 
-const posts = [
+// 기존 하드코딩된 블로그 글 (SEO 유지)
+const legacyPosts = [
   {
     slug: 'resident-priority-parking-guide',
     title: '거주자 우선주차 신청방법 — 자격부터 배정까지 완벽 가이드',
@@ -43,6 +45,24 @@ const posts = [
     date: '2026-02-12',
   },
 ];
+
+// Content Collections 블로그 글 가져오기
+const mdPosts = await getCollection('blog');
+const mdPostsMapped = mdPosts.map((post) => ({
+  slug: post.slug,
+  title: post.data.title,
+  description: post.data.description,
+  date: post.data.date,
+}));
+
+// 기존 slug와 겹치지 않는 것만 추가
+const legacySlugs = new Set(legacyPosts.map(p => p.slug));
+const newPosts = mdPostsMapped.filter(p => !legacySlugs.has(p.slug));
+
+// 합치고 날짜 내림차순 정렬
+const allPosts = [...legacyPosts, ...newPosts].sort(
+  (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+);
 ---
 
 <BaseLayout title={title} description={description} canonical={canonical} breadcrumbs={breadcrumbs}>
@@ -53,7 +73,7 @@ const posts = [
     <p class="text-gray-500 mb-10">주차에 대한 유용한 정보와 꿀팁을 공유합니다.</p>
 
     <div class="space-y-6">
-      {posts.map((post) => (
+      {allPosts.map((post) => (
         <a href={`/blog/${post.slug}/`} class="block p-6 bg-white border border-gray-200 rounded-2xl hover:border-emerald-400 hover:shadow-md transition-all">
           <time class="text-sm text-gray-500">{post.date}</time>
           <h2 class="text-xl font-bold text-gray-900 mt-1 mb-2">{post.title}</h2>
