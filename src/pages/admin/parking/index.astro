@@ -1,0 +1,238 @@
+---
+export const prerender = false;
+---
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="robots" content="noindex, nofollow" />
+  <title>주차장 관리 | ParkingMap Admin</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f5f5; color: #111; }
+    .sidebar {
+      position: fixed; top: 0; left: 0; width: 240px; height: 100vh;
+      background: #1a1a2e; color: white; padding: 24px 0;
+    }
+    .sidebar .logo { padding: 0 24px; font-size: 20px; font-weight: 800; margin-bottom: 32px; }
+    .sidebar .logo span { color: #34d399; }
+    .sidebar nav a {
+      display: flex; align-items: center; gap: 10px;
+      padding: 12px 24px; color: #aaa; text-decoration: none;
+      font-size: 14px; transition: all 0.2s;
+    }
+    .sidebar nav a:hover, .sidebar nav a.active { color: white; background: rgba(255,255,255,0.08); }
+    .sidebar nav a.active { border-left: 3px solid #34d399; }
+    .main { margin-left: 240px; padding: 32px 40px; }
+    .header { margin-bottom: 24px; }
+    .header h1 { font-size: 24px; font-weight: 800; margin-bottom: 8px; }
+    .header p { font-size: 14px; color: #888; }
+    .district-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
+    .district-card {
+      background: white; border-radius: 12px; padding: 16px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.06); cursor: pointer;
+      transition: all 0.2s; text-decoration: none; color: inherit;
+      display: block;
+    }
+    .district-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.1); transform: translateY(-2px); }
+    .district-card h3 { font-size: 15px; font-weight: 700; margin-bottom: 4px; }
+    .district-card p { font-size: 12px; color: #888; }
+    /* Editor modal */
+    .modal-overlay {
+      display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.5); z-index: 100;
+    }
+    .modal {
+      position: fixed; top: 5%; left: 50%; transform: translateX(-50%);
+      width: 90%; max-width: 800px; max-height: 90vh;
+      background: white; border-radius: 16px; z-index: 101;
+      display: flex; flex-direction: column;
+    }
+    .modal-header {
+      padding: 20px 24px; border-bottom: 1px solid #eee;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .modal-header h2 { font-size: 18px; font-weight: 700; }
+    .modal-body { padding: 24px; overflow-y: auto; flex: 1; }
+    .modal-body textarea {
+      width: 100%; min-height: 400px; border: 1px solid #ddd; border-radius: 8px;
+      padding: 16px; font-family: 'SF Mono', 'Fira Code', monospace; font-size: 13px;
+      line-height: 1.5; outline: none; resize: vertical;
+    }
+    .modal-body textarea:focus { border-color: #059669; }
+    .modal-footer { padding: 16px 24px; border-top: 1px solid #eee; display: flex; gap: 12px; justify-content: flex-end; }
+    .btn { display: inline-block; padding: 10px 20px; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; }
+    .btn-primary { background: #059669; color: white; }
+    .btn-primary:hover { background: #047857; }
+    .btn-gray { background: #e5e7eb; color: #374151; }
+    .btn-gray:hover { background: #d1d5db; }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .msg { padding: 12px 16px; border-radius: 8px; font-size: 14px; margin-top: 12px; display: none; }
+    .msg-success { background: #d1fae5; color: #065f46; }
+    .msg-error { background: #fee2e2; color: #dc2626; }
+  </style>
+</head>
+<body>
+  <aside class="sidebar">
+    <div class="logo"><span>P</span> Admin</div>
+    <nav>
+      <a href="/admin/">대시보드</a>
+      <a href="/admin/blog/">블로그 관리</a>
+      <a href="/admin/parking/" class="active">주차장 관리</a>
+      <a href="/" target="_blank">사이트 보기</a>
+    </nav>
+  </aside>
+
+  <div class="main">
+    <div class="header">
+      <h1>주차장 데이터 관리</h1>
+      <p>구별 JSON 데이터를 직접 편집합니다. 저장 시 GitHub에 커밋 → Vercel 자동 배포됩니다.</p>
+    </div>
+
+    <div class="district-grid" id="districtGrid">
+    </div>
+  </div>
+
+  <!-- 편집 모달 -->
+  <div class="modal-overlay" id="modalOverlay">
+    <div class="modal">
+      <div class="modal-header">
+        <h2 id="modalTitle">-</h2>
+        <button class="btn btn-gray" id="modalClose" style="padding:6px 12px;">닫기</button>
+      </div>
+      <div class="modal-body">
+        <textarea id="jsonEditor" spellcheck="false"></textarea>
+        <div class="msg msg-success" id="saveSuccess">저장 완료!</div>
+        <div class="msg msg-error" id="saveError"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-gray" id="formatBtn">JSON 정렬</button>
+        <button class="btn btn-primary" id="saveJsonBtn">GitHub에 저장</button>
+      </div>
+    </div>
+  </div>
+
+  <script is:inline>
+    const districts = [
+      '강남구', '강동구', '강북구', '강서구', '관악구',
+      '광진구', '구로구', '금천구', '노원구', '도봉구',
+      '동대문구', '동작구', '마포구', '서대문구', '서초구',
+      '성동구', '성북구', '송파구', '양천구', '영등포구',
+      '용산구', '은평구', '종로구', '중구', '중랑구',
+    ];
+
+    const grid = document.getElementById('districtGrid');
+    districts.forEach(d => {
+      const card = document.createElement('a');
+      card.className = 'district-card';
+      card.href = '#';
+      card.innerHTML = `<h3>${d}</h3><p>public/data/parking/서울특별시/${d}.json</p>`;
+      card.addEventListener('click', (e) => {
+        e.preventDefault();
+        openEditor(d);
+      });
+      grid.appendChild(card);
+    });
+
+    let currentDistrict = '';
+    let currentSha = '';
+
+    async function openEditor(district) {
+      currentDistrict = district;
+      document.getElementById('modalTitle').textContent = `${district} 주차장 데이터`;
+      document.getElementById('modalOverlay').style.display = 'block';
+      document.getElementById('jsonEditor').value = '불러오는 중...';
+      document.getElementById('saveSuccess').style.display = 'none';
+      document.getElementById('saveError').style.display = 'none';
+
+      try {
+        const res = await fetch(`/api/admin/parking/?district=${encodeURIComponent(district)}`);
+        const data = await res.json();
+
+        if (res.ok) {
+          document.getElementById('jsonEditor').value = data.content;
+          currentSha = data.sha;
+        } else {
+          document.getElementById('jsonEditor').value = '// 오류: ' + (data.error || '');
+        }
+      } catch (e) {
+        document.getElementById('jsonEditor').value = '// 오류: ' + e.message;
+      }
+    }
+
+    document.getElementById('modalClose').addEventListener('click', () => {
+      document.getElementById('modalOverlay').style.display = 'none';
+    });
+
+    document.getElementById('modalOverlay').addEventListener('click', (e) => {
+      if (e.target === document.getElementById('modalOverlay')) {
+        document.getElementById('modalOverlay').style.display = 'none';
+      }
+    });
+
+    // JSON 정렬
+    document.getElementById('formatBtn').addEventListener('click', () => {
+      const editor = document.getElementById('jsonEditor');
+      try {
+        const parsed = JSON.parse(editor.value);
+        editor.value = JSON.stringify(parsed, null, 2);
+      } catch (e) {
+        alert('JSON 형식 오류: ' + e.message);
+      }
+    });
+
+    // 저장
+    document.getElementById('saveJsonBtn').addEventListener('click', async () => {
+      const btn = document.getElementById('saveJsonBtn');
+      const successMsg = document.getElementById('saveSuccess');
+      const errorMsg = document.getElementById('saveError');
+
+      btn.disabled = true;
+      btn.textContent = '저장 중...';
+      successMsg.style.display = 'none';
+      errorMsg.style.display = 'none';
+
+      // JSON 유효성 검사
+      const content = document.getElementById('jsonEditor').value;
+      try {
+        JSON.parse(content);
+      } catch {
+        errorMsg.textContent = 'JSON 형식이 올바르지 않습니다.';
+        errorMsg.style.display = 'block';
+        btn.disabled = false;
+        btn.textContent = 'GitHub에 저장';
+        return;
+      }
+
+      try {
+        const res = await fetch('/api/admin/parking/', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            district: currentDistrict,
+            content: content,
+            sha: currentSha,
+          }),
+        });
+
+        const result = await res.json();
+
+        if (res.ok) {
+          successMsg.style.display = 'block';
+          currentSha = result.sha || currentSha;
+        } else {
+          errorMsg.textContent = result.error || '저장 실패';
+          errorMsg.style.display = 'block';
+        }
+      } catch (e) {
+        errorMsg.textContent = '서버 오류: ' + e.message;
+        errorMsg.style.display = 'block';
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'GitHub에 저장';
+      }
+    });
+  </script>
+</body>
+</html>

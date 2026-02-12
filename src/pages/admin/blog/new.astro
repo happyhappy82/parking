@@ -1,0 +1,176 @@
+---
+export const prerender = false;
+---
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="robots" content="noindex, nofollow" />
+  <title>새 블로그 글 작성 | ParkingMap Admin</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f5f5; color: #111; }
+    .sidebar {
+      position: fixed; top: 0; left: 0; width: 240px; height: 100vh;
+      background: #1a1a2e; color: white; padding: 24px 0;
+    }
+    .sidebar .logo { padding: 0 24px; font-size: 20px; font-weight: 800; margin-bottom: 32px; }
+    .sidebar .logo span { color: #34d399; }
+    .sidebar nav a {
+      display: flex; align-items: center; gap: 10px;
+      padding: 12px 24px; color: #aaa; text-decoration: none;
+      font-size: 14px; transition: all 0.2s;
+    }
+    .sidebar nav a:hover, .sidebar nav a.active { color: white; background: rgba(255,255,255,0.08); }
+    .sidebar nav a.active { border-left: 3px solid #34d399; }
+    .main { margin-left: 240px; padding: 32px 40px; max-width: 900px; }
+    .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
+    .header h1 { font-size: 24px; font-weight: 800; }
+    .form-group { margin-bottom: 20px; }
+    .form-group label { display: block; font-size: 14px; font-weight: 600; color: #333; margin-bottom: 8px; }
+    .form-group input, .form-group textarea {
+      width: 100%; padding: 12px 16px; border: 1px solid #ddd;
+      border-radius: 8px; font-size: 14px; outline: none;
+      font-family: inherit; transition: border-color 0.2s;
+    }
+    .form-group input:focus, .form-group textarea:focus { border-color: #059669; }
+    .form-group textarea { min-height: 400px; font-family: 'SF Mono', 'Fira Code', monospace; font-size: 13px; line-height: 1.6; resize: vertical; }
+    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .btn { display: inline-block; padding: 12px 24px; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.2s; text-decoration: none; }
+    .btn-primary { background: #059669; color: white; }
+    .btn-primary:hover { background: #047857; }
+    .btn-gray { background: #e5e7eb; color: #374151; }
+    .btn-gray:hover { background: #d1d5db; }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .actions { display: flex; gap: 12px; margin-top: 24px; }
+    .msg { padding: 12px 16px; border-radius: 8px; font-size: 14px; margin-top: 16px; display: none; }
+    .msg-success { background: #d1fae5; color: #065f46; }
+    .msg-error { background: #fee2e2; color: #dc2626; }
+    .slug-preview { font-size: 12px; color: #888; margin-top: 4px; }
+  </style>
+</head>
+<body>
+  <aside class="sidebar">
+    <div class="logo"><span>P</span> Admin</div>
+    <nav>
+      <a href="/admin/">대시보드</a>
+      <a href="/admin/blog/" class="active">블로그 관리</a>
+      <a href="/admin/parking/">주차장 관리</a>
+      <a href="/" target="_blank">사이트 보기</a>
+    </nav>
+  </aside>
+
+  <div class="main">
+    <div class="header">
+      <h1>새 블로그 글 작성</h1>
+      <a href="/admin/blog/" class="btn btn-gray">목록으로</a>
+    </div>
+
+    <form id="blogForm">
+      <div class="form-group">
+        <label for="title">제목</label>
+        <input type="text" id="title" placeholder="블로그 글 제목을 입력하세요" required />
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label for="slug">슬러그 (URL)</label>
+          <input type="text" id="slug" placeholder="my-blog-post" required />
+          <div class="slug-preview">미리보기: /blog/<span id="slugPreview">-</span>/</div>
+        </div>
+        <div class="form-group">
+          <label for="date">날짜</label>
+          <input type="date" id="date" required />
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="description">설명 (SEO)</label>
+        <input type="text" id="description" placeholder="검색 결과에 표시될 설명을 입력하세요" required />
+      </div>
+
+      <div class="form-group">
+        <label for="content">본문 (Markdown)</label>
+        <textarea id="content" placeholder="마크다운으로 본문을 작성하세요...&#10;&#10;## 소제목&#10;&#10;본문 내용을 여기에 작성합니다." required></textarea>
+      </div>
+
+      <div class="actions">
+        <button type="submit" class="btn btn-primary" id="saveBtn">GitHub에 저장</button>
+        <button type="button" class="btn btn-gray" id="previewBtn">미리보기</button>
+      </div>
+
+      <div class="msg msg-success" id="successMsg"></div>
+      <div class="msg msg-error" id="errorMsg"></div>
+    </form>
+  </div>
+
+  <script is:inline>
+    // 오늘 날짜 기본값
+    document.getElementById('date').value = new Date().toISOString().split('T')[0];
+
+    // 제목 → 슬러그 자동 생성
+    document.getElementById('title').addEventListener('input', (e) => {
+      const slug = e.target.value
+        .toLowerCase()
+        .replace(/[가-힣]/g, '') // 한글 제거
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '');
+      if (!document.getElementById('slug').dataset.manual) {
+        document.getElementById('slug').value = slug;
+        document.getElementById('slugPreview').textContent = slug || '-';
+      }
+    });
+
+    document.getElementById('slug').addEventListener('input', (e) => {
+      e.target.dataset.manual = 'true';
+      document.getElementById('slugPreview').textContent = e.target.value || '-';
+    });
+
+    // 저장
+    document.getElementById('blogForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const btn = document.getElementById('saveBtn');
+      const successMsg = document.getElementById('successMsg');
+      const errorMsg = document.getElementById('errorMsg');
+
+      btn.disabled = true;
+      btn.textContent = '저장 중...';
+      successMsg.style.display = 'none';
+      errorMsg.style.display = 'none';
+
+      const data = {
+        title: document.getElementById('title').value,
+        slug: document.getElementById('slug').value,
+        date: document.getElementById('date').value,
+        description: document.getElementById('description').value,
+        content: document.getElementById('content').value,
+      };
+
+      try {
+        const res = await fetch('/api/admin/blog/', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data),
+        });
+
+        const result = await res.json();
+
+        if (res.ok) {
+          successMsg.textContent = '저장 완료! GitHub에 커밋되었습니다. 잠시 후 Vercel이 자동 배포합니다.';
+          successMsg.style.display = 'block';
+        } else {
+          errorMsg.textContent = result.error || '저장에 실패했습니다.';
+          errorMsg.style.display = 'block';
+        }
+      } catch (err) {
+        errorMsg.textContent = '서버 연결에 실패했습니다: ' + err.message;
+        errorMsg.style.display = 'block';
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'GitHub에 저장';
+      }
+    });
+  </script>
+</body>
+</html>

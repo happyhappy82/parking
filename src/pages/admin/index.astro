@@ -1,0 +1,118 @@
+---
+export const prerender = false;
+---
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="robots" content="noindex, nofollow" />
+  <title>Admin 대시보드 | ParkingMap</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f5f5; color: #111; }
+    .sidebar {
+      position: fixed; top: 0; left: 0; width: 240px; height: 100vh;
+      background: #1a1a2e; color: white; padding: 24px 0;
+    }
+    .sidebar .logo { padding: 0 24px; font-size: 20px; font-weight: 800; margin-bottom: 32px; }
+    .sidebar .logo span { color: #34d399; }
+    .sidebar nav a {
+      display: flex; align-items: center; gap: 10px;
+      padding: 12px 24px; color: #aaa; text-decoration: none;
+      font-size: 14px; transition: all 0.2s;
+    }
+    .sidebar nav a:hover, .sidebar nav a.active { color: white; background: rgba(255,255,255,0.08); }
+    .sidebar nav a.active { border-left: 3px solid #34d399; }
+    .main { margin-left: 240px; padding: 32px 40px; }
+    .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 32px; }
+    .header h1 { font-size: 24px; font-weight: 800; }
+    .btn { padding: 8px 16px; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.2s; text-decoration: none; }
+    .btn-red { background: #fee2e2; color: #dc2626; }
+    .btn-red:hover { background: #fecaca; }
+    .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; margin-bottom: 32px; }
+    .card {
+      background: white; border-radius: 16px; padding: 24px;
+      box-shadow: 0 1px 8px rgba(0,0,0,0.06);
+    }
+    .card h3 { font-size: 14px; color: #888; margin-bottom: 8px; }
+    .card .value { font-size: 32px; font-weight: 800; }
+    .card .sub { font-size: 13px; color: #888; margin-top: 4px; }
+    .quick-links { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; }
+    .quick-link {
+      display: block; background: white; border-radius: 16px; padding: 20px;
+      text-decoration: none; color: inherit;
+      box-shadow: 0 1px 8px rgba(0,0,0,0.06); transition: all 0.2s;
+    }
+    .quick-link:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.12); transform: translateY(-2px); }
+    .quick-link h3 { font-size: 16px; font-weight: 700; margin-bottom: 4px; }
+    .quick-link p { font-size: 13px; color: #888; }
+  </style>
+</head>
+<body>
+  <aside class="sidebar">
+    <div class="logo"><span>P</span> Admin</div>
+    <nav>
+      <a href="/admin/" class="active">대시보드</a>
+      <a href="/admin/blog/">블로그 관리</a>
+      <a href="/admin/parking/">주차장 관리</a>
+      <a href="/" target="_blank">사이트 보기</a>
+    </nav>
+  </aside>
+
+  <div class="main">
+    <div class="header">
+      <h1>대시보드</h1>
+      <button class="btn btn-red" id="logoutBtn">로그아웃</button>
+    </div>
+
+    <div class="cards" id="statsCards">
+      <div class="card">
+        <h3>블로그 글</h3>
+        <div class="value" id="blogCount">-</div>
+        <div class="sub">Content Collections 기준</div>
+      </div>
+      <div class="card">
+        <h3>주차장 데이터 (구)</h3>
+        <div class="value" id="parkingCount">-</div>
+        <div class="sub">서울 25개 구</div>
+      </div>
+      <div class="card">
+        <h3>배포 환경</h3>
+        <div class="value" style="font-size:18px;">Vercel</div>
+        <div class="sub">GitHub Push → 자동 재배포</div>
+      </div>
+    </div>
+
+    <h2 style="font-size:18px; font-weight:700; margin-bottom:16px;">빠른 작업</h2>
+    <div class="quick-links">
+      <a href="/admin/blog/new/" class="quick-link">
+        <h3>새 블로그 글 작성</h3>
+        <p>마크다운으로 새 블로그 글을 작성하고 GitHub에 저장합니다.</p>
+      </a>
+      <a href="/admin/blog/" class="quick-link">
+        <h3>블로그 글 목록</h3>
+        <p>기존 블로그 글을 확인하고 편집합니다.</p>
+      </a>
+      <a href="/admin/parking/" class="quick-link">
+        <h3>주차장 데이터 편집</h3>
+        <p>구별 주차장 JSON 데이터를 확인하고 수정합니다.</p>
+      </a>
+    </div>
+  </div>
+
+  <script is:inline>
+    // 통계 로드
+    fetch('/api/admin/stats/').then(r => r.json()).then(data => {
+      if (data.blogCount !== undefined) document.getElementById('blogCount').textContent = data.blogCount;
+      if (data.parkingCount !== undefined) document.getElementById('parkingCount').textContent = data.parkingCount;
+    }).catch(() => {});
+
+    // 로그아웃
+    document.getElementById('logoutBtn').addEventListener('click', async () => {
+      await fetch('/api/auth/logout/', { method: 'POST' });
+      window.location.href = '/admin/login/';
+    });
+  </script>
+</body>
+</html>
