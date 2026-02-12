@@ -63,25 +63,29 @@ export const GET: APIRoute = async ({ url }) => {
     }
 
     // 목록 조회
-    const files = await listFiles(BLOG_PATH);
     const mdPosts = [];
 
-    for (const file of files) {
-      if (!file.name.endsWith('.md')) continue;
-      const fileSlug = file.name.replace('.md', '');
-      try {
-        const { content } = await getFile(file.path);
-        const { meta } = parseFrontmatter(content);
-        mdPosts.push({
-          slug: fileSlug,
-          title: meta.title || fileSlug,
-          description: meta.description || '',
-          date: meta.date || '',
-          source: 'md',
-        });
-      } catch {
-        mdPosts.push({ slug: fileSlug, title: fileSlug, description: '', date: '', source: 'md' });
+    try {
+      const files = await listFiles(BLOG_PATH);
+      for (const file of files) {
+        if (!file.name.endsWith('.md')) continue;
+        const fileSlug = file.name.replace('.md', '');
+        try {
+          const { content } = await getFile(file.path);
+          const { meta } = parseFrontmatter(content);
+          mdPosts.push({
+            slug: fileSlug,
+            title: meta.title || fileSlug,
+            description: meta.description || '',
+            date: meta.date || '',
+            source: 'md',
+          });
+        } catch {
+          mdPosts.push({ slug: fileSlug, title: fileSlug, description: '', date: '', source: 'md' });
+        }
       }
+    } catch {
+      // GitHub API 실패해도 레거시 글은 보여줌
     }
 
     const allPosts = [...LEGACY_POSTS, ...mdPosts].sort(
@@ -90,7 +94,8 @@ export const GET: APIRoute = async ({ url }) => {
 
     return json({ posts: allPosts });
   } catch (e: any) {
-    return json({ error: e.message }, 500);
+    // 최후의 fallback: 레거시 글이라도 보여줌
+    return json({ posts: LEGACY_POSTS });
   }
 };
 
