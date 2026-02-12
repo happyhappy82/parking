@@ -28,16 +28,60 @@ export const prerender = false;
     .header { margin-bottom: 24px; }
     .header h1 { font-size: 24px; font-weight: 800; margin-bottom: 8px; }
     .header p { font-size: 14px; color: #888; }
-    .district-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
-    .district-card {
-      background: white; border-radius: 12px; padding: 16px;
-      box-shadow: 0 1px 4px rgba(0,0,0,0.06); cursor: pointer;
-      transition: all 0.2s; text-decoration: none; color: inherit;
-      display: block;
+
+    /* 검색 & 필터 섹션 */
+    .controls {
+      background: white; border-radius: 12px; padding: 20px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.06); margin-bottom: 20px;
+      display: flex; gap: 12px; flex-wrap: wrap; align-items: center;
     }
-    .district-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.1); transform: translateY(-2px); }
-    .district-card h3 { font-size: 15px; font-weight: 700; margin-bottom: 4px; }
-    .district-card p { font-size: 12px; color: #888; }
+    .controls input[type="text"] {
+      flex: 1; min-width: 200px; padding: 10px 14px;
+      border: 1px solid #ddd; border-radius: 8px; font-size: 14px;
+      outline: none;
+    }
+    .controls input[type="text"]:focus { border-color: #059669; }
+    .controls select {
+      padding: 10px 14px; border: 1px solid #ddd; border-radius: 8px;
+      font-size: 14px; outline: none; cursor: pointer;
+      background: white;
+    }
+    .controls select:focus { border-color: #059669; }
+
+    /* 테이블 */
+    .table-container {
+      background: white; border-radius: 12px; overflow: hidden;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+    }
+    table {
+      width: 100%; border-collapse: collapse; font-size: 14px;
+    }
+    thead { background: #f9fafb; border-bottom: 2px solid #e5e7eb; }
+    th {
+      text-align: left; padding: 14px 16px; font-weight: 700;
+      font-size: 13px; color: #374151; text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+    tbody tr {
+      border-bottom: 1px solid #f3f4f6; cursor: pointer;
+      transition: background 0.15s;
+    }
+    tbody tr:hover { background: #f9fafb; }
+    tbody tr:last-child { border-bottom: none; }
+    td { padding: 14px 16px; color: #111; }
+    .type-badge {
+      display: inline-block; padding: 3px 8px; border-radius: 4px;
+      font-size: 11px; font-weight: 600;
+    }
+    .type-공영 { background: #d1fae5; color: #065f46; }
+    .type-민영 { background: #dbeafe; color: #1e40af; }
+    .loading {
+      text-align: center; padding: 60px 20px; color: #888;
+    }
+    .empty {
+      text-align: center; padding: 60px 20px; color: #888;
+    }
+
     /* Editor modal */
     .modal-overlay {
       display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
@@ -86,11 +130,46 @@ export const prerender = false;
 
   <div class="main">
     <div class="header">
-      <h1>주차장 데이터 관리</h1>
-      <p>구별 JSON 데이터를 직접 편집합니다. 저장 시 GitHub에 커밋 → Vercel 자동 배포됩니다.</p>
+      <h1 id="pageTitle">주차장 데이터 관리</h1>
+      <p>개별 주차장을 검색하고 편집합니다. 저장 시 GitHub에 커밋 → Vercel 자동 배포됩니다.</p>
     </div>
 
-    <div class="district-grid" id="districtGrid">
+    <div class="controls">
+      <input
+        type="text"
+        id="searchInput"
+        placeholder="주차장 이름 또는 주소 검색..."
+      />
+      <select id="districtFilter">
+        <option value="">전체 구</option>
+      </select>
+      <select id="typeFilter">
+        <option value="">전체 유형</option>
+        <option value="공영">공영</option>
+        <option value="민영">민영</option>
+      </select>
+    </div>
+
+    <div class="table-container">
+      <div id="loadingState" class="loading">
+        <div>데이터 로딩 중...</div>
+      </div>
+      <div id="emptyState" class="empty" style="display: none;">
+        검색 결과가 없습니다.
+      </div>
+      <table id="parkingTable" style="display: none;">
+        <thead>
+          <tr>
+            <th>구</th>
+            <th>이름</th>
+            <th>유형</th>
+            <th>주소</th>
+            <th style="text-align: right;">주차면수</th>
+          </tr>
+        </thead>
+        <tbody id="parkingTableBody">
+        </tbody>
+      </table>
     </div>
   </div>
 
@@ -122,45 +201,139 @@ export const prerender = false;
       '용산구', '은평구', '종로구', '중구', '중랑구',
     ];
 
-    const grid = document.getElementById('districtGrid');
-    districts.forEach(d => {
-      const card = document.createElement('a');
-      card.className = 'district-card';
-      card.href = '#';
-      card.innerHTML = `<h3>${d}</h3><p>public/data/parking/서울특별시/${d}.json</p>`;
-      card.addEventListener('click', (e) => {
-        e.preventDefault();
-        openEditor(d);
+    let allParkingLots = []; // { district, parking, originalIndex }
+    let filteredParkingLots = [];
+    let currentEditingParking = null;
+
+    // 초기 로딩
+    async function loadAllParkingData() {
+      try {
+        const promises = districts.map(d =>
+          fetch(`/data/parking/서울특별시/${d}.json`)
+            .then(res => res.json())
+            .then(data => ({
+              district: d,
+              items: data.items || []
+            }))
+        );
+
+        const results = await Promise.all(promises);
+
+        allParkingLots = [];
+        results.forEach(({ district, items }) => {
+          items.forEach((parking, idx) => {
+            allParkingLots.push({
+              district,
+              parking,
+              originalIndex: idx
+            });
+          });
+        });
+
+        // 페이지 제목 업데이트
+        document.getElementById('pageTitle').textContent = `주차장 데이터 관리 (${allParkingLots.length}개)`;
+
+        // 구 필터 채우기
+        const districtFilter = document.getElementById('districtFilter');
+        districts.forEach(d => {
+          const option = document.createElement('option');
+          option.value = d;
+          option.textContent = d;
+          districtFilter.appendChild(option);
+        });
+
+        // 초기 렌더링
+        applyFilters();
+
+      } catch (e) {
+        console.error('데이터 로딩 실패:', e);
+        document.getElementById('loadingState').innerHTML = `<div style="color: #dc2626;">데이터 로딩 실패: ${e.message}</div>`;
+      }
+    }
+
+    // 필터 적용
+    function applyFilters() {
+      const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+      const districtFilter = document.getElementById('districtFilter').value;
+      const typeFilter = document.getElementById('typeFilter').value;
+
+      filteredParkingLots = allParkingLots.filter(({ district, parking }) => {
+        // 검색어 필터
+        const matchesSearch = !searchTerm ||
+          parking.name.toLowerCase().includes(searchTerm) ||
+          (parking.address || '').toLowerCase().includes(searchTerm) ||
+          (parking.roadAddress || '').toLowerCase().includes(searchTerm);
+
+        // 구 필터
+        const matchesDistrict = !districtFilter || district === districtFilter;
+
+        // 유형 필터
+        const matchesType = !typeFilter || parking.type === typeFilter;
+
+        return matchesSearch && matchesDistrict && matchesType;
       });
-      grid.appendChild(card);
-    });
 
-    let currentDistrict = '';
-    let currentSha = '';
+      renderTable();
+    }
 
-    async function openEditor(district) {
-      currentDistrict = district;
-      document.getElementById('modalTitle').textContent = `${district} 주차장 데이터`;
+    // 테이블 렌더링
+    function renderTable() {
+      const loadingState = document.getElementById('loadingState');
+      const emptyState = document.getElementById('emptyState');
+      const table = document.getElementById('parkingTable');
+      const tbody = document.getElementById('parkingTableBody');
+
+      loadingState.style.display = 'none';
+
+      if (filteredParkingLots.length === 0) {
+        emptyState.style.display = 'block';
+        table.style.display = 'none';
+        return;
+      }
+
+      emptyState.style.display = 'none';
+      table.style.display = 'table';
+
+      tbody.innerHTML = '';
+      filteredParkingLots.forEach(({ district, parking, originalIndex }) => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${district}</td>
+          <td><strong>${parking.name}</strong></td>
+          <td><span class="type-badge type-${parking.type}">${parking.type}</span></td>
+          <td style="max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${parking.roadAddress || parking.address}</td>
+          <td style="text-align: right;">${parking.totalSpaces || 0}면</td>
+        `;
+        tr.addEventListener('click', () => openEditor(district, parking, originalIndex));
+        tbody.appendChild(tr);
+      });
+    }
+
+    // 이벤트 리스너
+    document.getElementById('searchInput').addEventListener('input', applyFilters);
+    document.getElementById('districtFilter').addEventListener('change', applyFilters);
+    document.getElementById('typeFilter').addEventListener('change', applyFilters);
+
+    // 편집 모달 열기
+    async function openEditor(district, parking, originalIndex) {
+      currentEditingParking = { district, parking, originalIndex };
+
+      document.getElementById('modalTitle').textContent = `${parking.name} (${district})`;
       document.getElementById('modalOverlay').style.display = 'block';
       document.getElementById('jsonEditor').value = '불러오는 중...';
       document.getElementById('saveSuccess').style.display = 'none';
       document.getElementById('saveError').style.display = 'none';
 
+      // 개별 주차장 JSON 표시
       try {
-        const res = await fetch(`/api/admin/parking/?district=${encodeURIComponent(district)}`);
-        const data = await res.json();
-
-        if (res.ok) {
-          document.getElementById('jsonEditor').value = data.content;
-          currentSha = data.sha;
-        } else {
-          document.getElementById('jsonEditor').value = '// 오류: ' + (data.error || '');
-        }
+        const formatted = JSON.stringify(parking, null, 2);
+        document.getElementById('jsonEditor').value = formatted;
       } catch (e) {
-        document.getElementById('jsonEditor').value = '// 오류: ' + e.message;
+        document.getElementById('jsonEditor').value = '// JSON 변환 오류: ' + e.message;
       }
     }
 
+    // 모달 닫기
     document.getElementById('modalClose').addEventListener('click', () => {
       document.getElementById('modalOverlay').style.display = 'none';
     });
@@ -184,6 +357,8 @@ export const prerender = false;
 
     // 저장
     document.getElementById('saveJsonBtn').addEventListener('click', async () => {
+      if (!currentEditingParking) return;
+
       const btn = document.getElementById('saveJsonBtn');
       const successMsg = document.getElementById('saveSuccess');
       const errorMsg = document.getElementById('saveError');
@@ -195,8 +370,9 @@ export const prerender = false;
 
       // JSON 유효성 검사
       const content = document.getElementById('jsonEditor').value;
+      let updatedParkingData;
       try {
-        JSON.parse(content);
+        updatedParkingData = JSON.parse(content);
       } catch {
         errorMsg.textContent = 'JSON 형식이 올바르지 않습니다.';
         errorMsg.style.display = 'block';
@@ -206,23 +382,46 @@ export const prerender = false;
       }
 
       try {
-        const res = await fetch('/api/admin/parking/', {
+        const { district, originalIndex } = currentEditingParking;
+
+        // 1. GitHub API로 최신 district JSON 가져오기
+        const getRes = await fetch(`/api/admin/parking/?district=${encodeURIComponent(district)}`);
+        const getData = await getRes.json();
+
+        if (!getRes.ok) {
+          throw new Error(getData.error || '구 데이터 로딩 실패');
+        }
+
+        // 2. 파싱 & 해당 주차장 데이터 교체
+        const districtData = JSON.parse(getData.content);
+        districtData.items[originalIndex] = updatedParkingData;
+
+        // 3. GitHub API로 저장
+        const saveRes = await fetch('/api/admin/parking/', {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            district: currentDistrict,
-            content: content,
-            sha: currentSha,
+            district,
+            content: JSON.stringify(districtData, null, 2),
+            sha: getData.sha,
           }),
         });
 
-        const result = await res.json();
+        const saveResult = await saveRes.json();
 
-        if (res.ok) {
+        if (saveRes.ok) {
           successMsg.style.display = 'block';
-          currentSha = result.sha || currentSha;
+
+          // 로컬 데이터도 업데이트
+          const parkingLotIndex = allParkingLots.findIndex(
+            p => p.district === district && p.originalIndex === originalIndex
+          );
+          if (parkingLotIndex !== -1) {
+            allParkingLots[parkingLotIndex].parking = updatedParkingData;
+          }
+          applyFilters();
         } else {
-          errorMsg.textContent = result.error || '저장 실패';
+          errorMsg.textContent = saveResult.error || '저장 실패';
           errorMsg.style.display = 'block';
         }
       } catch (e) {
@@ -233,6 +432,9 @@ export const prerender = false;
         btn.textContent = 'GitHub에 저장';
       }
     });
+
+    // 페이지 로드 시 데이터 로딩
+    loadAllParkingData();
   </script>
 </body>
 </html>

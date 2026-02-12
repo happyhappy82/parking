@@ -74,7 +74,7 @@ export const prerender = false;
       </div>
       <div class="card">
         <h3>주차장 데이터 (구)</h3>
-        <div class="value" id="parkingCount">-</div>
+        <div class="value" id="parkingDistricts">-</div>
         <div class="sub">서울 25개 구</div>
       </div>
       <div class="card">
@@ -105,7 +105,7 @@ export const prerender = false;
     // 통계 로드
     fetch('/api/admin/stats/').then(r => r.json()).then(data => {
       if (data.blogCount !== undefined) document.getElementById('blogCount').textContent = data.blogCount;
-      if (data.parkingCount !== undefined) document.getElementById('parkingCount').textContent = data.parkingCount;
+      if (data.parkingDistricts !== undefined) document.getElementById('parkingDistricts').textContent = data.parkingDistricts;
     }).catch(() => {});
 
     // 로그아웃
