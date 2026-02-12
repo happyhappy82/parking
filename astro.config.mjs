@@ -8,6 +8,9 @@ export default defineConfig({
   output: 'hybrid',
   adapter: vercel(),
   trailingSlash: 'always',
+  prefetch: {
+    prefetchAll: true,
+  },
   integrations: [
     tailwind(),
     sitemap(),
