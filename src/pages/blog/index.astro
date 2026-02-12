@@ -1,0 +1,53 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import Header from '../../components/Header.astro';
+
+const title = '블로그 - 주차 꿀팁 & 정보 | ParkingMap';
+const description = '서울 주차장 이용 꿀팁, 무료주차장 정보, 주차 관련 유용한 글을 모아놓은 블로그입니다.';
+const canonical = 'https://parkingmap.kr/blog/';
+
+const breadcrumbs = [
+  { name: '홈', url: 'https://parkingmap.kr/' },
+  { name: '블로그', url: canonical },
+];
+
+const posts = [
+  {
+    slug: 'seoul-most-searched-parking-top30',
+    title: '서울 가장 많이 검색된 주차장 TOP 30',
+    description: '서울시 공영주차장 중 주차 면수가 가장 많은 대형 주차장 30곳을 한눈에 정리했습니다.',
+    date: '2026-02-12',
+  },
+  {
+    slug: 'gangdong-holiday-parking-tips',
+    title: '강동구 명절·연휴 주차 꿀팁 총정리',
+    description: '설날, 추석, 연휴 기간 강동구에서 주차하기 좋은 공영주차장과 꿀팁을 정리했습니다.',
+    date: '2026-02-12',
+  },
+  {
+    slug: 'seoul-free-parking-tips',
+    title: '서울 무료주차장 이용 꿀팁 5가지',
+    description: '서울에서 무료로 주차할 수 있는 곳과 알아두면 유용한 주차 꿀팁을 정리했습니다.',
+    date: '2026-02-12',
+  },
+];
+---
+
+<BaseLayout title={title} description={description} canonical={canonical} breadcrumbs={breadcrumbs}>
+  <Header />
+
+  <div class="max-w-3xl mx-auto">
+    <h1 class="text-3xl font-black text-gray-900 mb-2">블로그</h1>
+    <p class="text-gray-500 mb-10">주차에 대한 유용한 정보와 꿀팁을 공유합니다.</p>
+
+    <div class="space-y-6">
+      {posts.map((post) => (
+        <a href={`/blog/${post.slug}/`} class="block p-6 bg-white border border-gray-200 rounded-2xl hover:border-emerald-400 hover:shadow-md transition-all">
+          <time class="text-sm text-gray-400">{post.date}</time>
+          <h2 class="text-xl font-bold text-gray-900 mt-1 mb-2">{post.title}</h2>
+          <p class="text-gray-500 text-sm">{post.description}</p>
+        </a>
+      ))}
+    </div>
+  </div>
+</BaseLayout>
