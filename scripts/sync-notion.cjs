@@ -50,6 +50,8 @@ function getPropertyValue(page, name) {
       return richTextToPlain(prop.rich_text);
     case 'select':
       return prop.select ? prop.select.name : '';
+    case 'status':
+      return prop.status ? prop.status.name : '';
     case 'date':
       return prop.date ? prop.date.start : '';
     default:
@@ -119,7 +121,7 @@ async function getPublishedPages() {
       database_id: DATABASE_ID,
       filter: {
         property: 'Status',
-        select: { equals: 'Published' },
+        status: { equals: 'Published' },
       },
       start_cursor: cursor,
     });
