@@ -550,30 +550,37 @@ async function getPageById(pageId) {
   return notion.pages.retrieve({ page_id: pageId });
 }
 
+/** 타이틀 → slug 자동 생성 */
+function titleToSlug(title) {
+  return title
+    .trim()
+    .toLowerCase()
+    .replace(/[^\w\uAC00-\uD7A3\u3131-\u3163\u1100-\u11FF-]/g, '-') // 영숫자, 한글, 하이픈 외 제거
+    .replace(/-{2,}/g, '-')    // 연속 하이픈 → 하나로
+    .replace(/^-|-$/g, '');    // 앞뒤 하이픈 제거
+}
+
 /** Notion 페이지 → HTML 변환 (frontmatter + HTML 본문) */
 async function pageToContent(page, pageMap) {
   const pageId = page.id;
   const title = getPropertyValue(page, 'Title');
   const description = getPropertyValue(page, 'Description');
-  const date = getPropertyValue(page, 'Date');
   const breadcrumbName = getPropertyValue(page, 'BreadcrumbName');
+
+  if (!title) {
+    console.warn(`  [SKIP] 제목 없는 페이지`);
+    return null;
+  }
 
   // 기존 매핑에 slug가 있으면 그대로 사용 (중복 방지)
   const existingSlug = pageMap[pageId];
-  let slug = existingSlug || getPropertyValue(page, 'Slug');
-
-  if (!slug) {
-    console.warn(`  [SKIP] "${title}" — Slug 없음`);
-    return null;
-  }
+  let slug = existingSlug || getPropertyValue(page, 'Slug') || titleToSlug(title);
 
   // 중첩 경로 → flat slug (파일시스템 호환)
   slug = slug.replace(/\//g, '-');
 
-  if (!date) {
-    console.warn(`  [SKIP] "${title}" — Date 없음`);
-    return null;
-  }
+  // Date 없으면 오늘 날짜 사용
+  const date = getPropertyValue(page, 'Date') || new Date().toISOString().slice(0, 10);
 
   // Notion 본문 블록 → HTML 직접 변환 (텍스트 파싱 없음)
   console.log(`  [FETCH] 블록 가져오는 중...`);
