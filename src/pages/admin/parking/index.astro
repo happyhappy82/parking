@@ -9,211 +9,143 @@ export const prerender = false;
   <meta name="robots" content="noindex, nofollow" />
   <title>주차장 관리 | ParkingMap Admin</title>
   <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f5f5; color: #111; }
-    .sidebar {
-      position: fixed; top: 0; left: 0; width: 240px; height: 100vh;
-      background: #1a1a2e; color: white; padding: 24px 0;
-    }
-    .sidebar .logo { padding: 0 24px; font-size: 20px; font-weight: 800; margin-bottom: 32px; }
-    .sidebar .logo span { color: #34d399; }
-    .sidebar nav a {
-      display: flex; align-items: center; gap: 10px;
-      padding: 12px 24px; color: #aaa; text-decoration: none;
-      font-size: 14px; transition: all 0.2s;
-    }
-    .sidebar nav a:hover, .sidebar nav a.active { color: white; background: rgba(255,255,255,0.08); }
-    .sidebar nav a.active { border-left: 3px solid #34d399; }
-    .main { margin-left: 240px; padding: 32px 40px; }
-    .header { margin-bottom: 24px; }
-    .header h1 { font-size: 24px; font-weight: 800; margin-bottom: 8px; }
-    .header p { font-size: 14px; color: #888; }
+    *{margin:0;padding:0;box-sizing:border-box}
+    body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#f1f5f9;color:#1e293b;-webkit-font-smoothing:antialiased}
 
-    /* 검색 & 필터 섹션 */
-    .controls {
-      background: white; border-radius: 12px; padding: 20px;
-      box-shadow: 0 1px 4px rgba(0,0,0,0.06); margin-bottom: 20px;
-      display: flex; gap: 12px; flex-wrap: wrap; align-items: center;
-    }
-    .controls input[type="text"] {
-      flex: 1; min-width: 200px; padding: 10px 14px;
-      border: 1px solid #ddd; border-radius: 8px; font-size: 14px;
-      outline: none;
-    }
-    .controls input[type="text"]:focus { border-color: #059669; }
-    .controls select {
-      padding: 10px 14px; border: 1px solid #ddd; border-radius: 8px;
-      font-size: 14px; outline: none; cursor: pointer;
-      background: white;
-    }
-    .controls select:focus { border-color: #059669; }
+    /* ── Sidebar ── */
+    .sidebar{position:fixed;top:0;left:0;width:220px;height:100vh;background:#0f172a;display:flex;flex-direction:column;z-index:50}
+    .sidebar-header{padding:20px;border-bottom:1px solid rgba(255,255,255,.06)}
+    .sidebar-logo{font-size:15px;font-weight:800;color:#e2e8f0;display:flex;align-items:center;gap:10px;text-decoration:none}
+    .logo-icon{width:30px;height:30px;background:linear-gradient(135deg,#10b981,#059669);border-radius:8px;display:flex;align-items:center;justify-content:center;color:white;font-weight:900;font-size:15px}
+    .sidebar nav{flex:1;padding:16px 0}
+    .sidebar nav a{display:flex;align-items:center;gap:10px;padding:10px 16px;margin:2px 8px;color:#94a3b8;text-decoration:none;font-size:13px;font-weight:500;border-radius:8px;transition:all .15s}
+    .sidebar nav a:hover{color:#e2e8f0;background:rgba(255,255,255,.05)}
+    .sidebar nav a.active{color:white;background:rgba(16,185,129,.15)}
+    .nav-icon{font-size:16px;width:20px;text-align:center}
+    .sidebar-footer{padding:16px 20px;border-top:1px solid rgba(255,255,255,.06)}
+    .logout-btn{width:100%;padding:8px 12px;background:transparent;border:1px solid rgba(255,255,255,.1);color:#64748b;border-radius:6px;font-size:12px;cursor:pointer;transition:all .15s}
+    .logout-btn:hover{background:rgba(255,255,255,.05);color:#94a3b8}
 
-    /* 테이블 */
-    .table-container {
-      background: white; border-radius: 12px; overflow: hidden;
-      box-shadow: 0 1px 4px rgba(0,0,0,0.06);
-    }
-    table {
-      width: 100%; border-collapse: collapse; font-size: 14px;
-    }
-    thead { background: #f9fafb; border-bottom: 2px solid #e5e7eb; }
-    th {
-      text-align: left; padding: 14px 16px; font-weight: 700;
-      font-size: 13px; color: #374151; text-transform: uppercase;
-      letter-spacing: 0.03em;
-    }
-    tbody tr {
-      border-bottom: 1px solid #f3f4f6; cursor: pointer;
-      transition: background 0.15s;
-    }
-    tbody tr:hover { background: #f9fafb; }
-    tbody tr:last-child { border-bottom: none; }
-    td { padding: 14px 16px; color: #111; }
-    .type-badge {
-      display: inline-block; padding: 3px 8px; border-radius: 4px;
-      font-size: 11px; font-weight: 600;
-    }
-    .type-공영 { background: #d1fae5; color: #065f46; }
-    .type-민영 { background: #dbeafe; color: #1e40af; }
-    .loading {
-      text-align: center; padding: 60px 20px; color: #888;
-    }
-    .empty {
-      text-align: center; padding: 60px 20px; color: #888;
-    }
+    /* ── Main ── */
+    .main{margin-left:220px;padding:28px 32px;min-height:100vh}
+    .page-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:24px}
+    .page-header h1{font-size:22px;font-weight:800;color:#0f172a}
+    .page-header .subtitle{font-size:13px;color:#64748b;margin-top:2px}
 
-    /* Editor modal */
-    .modal-overlay {
-      display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-      background: rgba(0,0,0,0.5); z-index: 100;
-    }
-    .modal {
-      position: fixed; top: 5%; left: 50%; transform: translateX(-50%);
-      width: 90%; max-width: 800px; max-height: 90vh;
-      background: white; border-radius: 16px; z-index: 101;
-      display: flex; flex-direction: column;
-    }
-    .modal-header {
-      padding: 20px 24px; border-bottom: 1px solid #eee;
-      display: flex; justify-content: space-between; align-items: center;
-    }
-    .modal-header h2 { font-size: 18px; font-weight: 700; }
-    .modal-body { padding: 24px; overflow-y: auto; flex: 1; }
-    .modal-body textarea {
-      width: 100%; min-height: 400px; border: 1px solid #ddd; border-radius: 8px;
-      padding: 16px; font-family: 'SF Mono', 'Fira Code', monospace; font-size: 13px;
-      line-height: 1.5; outline: none; resize: vertical;
-    }
-    .modal-body textarea:focus { border-color: #059669; }
-    .modal-footer { padding: 16px 24px; border-top: 1px solid #eee; display: flex; gap: 12px; justify-content: flex-end; }
-    .btn { display: inline-block; padding: 10px 20px; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; }
-    .btn-primary { background: #059669; color: white; }
-    .btn-primary:hover { background: #047857; }
-    .btn-gray { background: #e5e7eb; color: #374151; }
-    .btn-gray:hover { background: #d1d5db; }
-    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
-    .btn-red { background: #fee2e2; color: #dc2626; }
-    .btn-red:hover { background: #fecaca; }
-    .msg { padding: 12px 16px; border-radius: 8px; font-size: 14px; margin-top: 12px; display: none; }
-    .msg-success { background: #d1fae5; color: #065f46; }
-    .msg-error { background: #fee2e2; color: #dc2626; }
+    /* ── Controls ── */
+    .controls{background:white;border-radius:12px;padding:16px 20px;border:1px solid #e2e8f0;margin-bottom:20px;display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+    .controls input[type="text"]{flex:1;min-width:200px;padding:9px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;outline:none;transition:border .15s;background:white;color:#1e293b}
+    .controls input[type="text"]:focus{border-color:#10b981;box-shadow:0 0 0 3px rgba(16,185,129,.1)}
+    .controls select{padding:9px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;outline:none;cursor:pointer;background:white;color:#1e293b;transition:border .15s}
+    .controls select:focus{border-color:#10b981}
 
-    /* 모달 탭 */
-    .modal-tabs {
-      display: flex; gap: 0; border-bottom: 2px solid #e5e7eb;
-      padding: 0 24px; background: #f9fafb;
-    }
-    .modal-tab {
-      padding: 12px 20px; border: none; background: none;
-      font-size: 14px; font-weight: 600; color: #6b7280;
-      cursor: pointer; position: relative; transition: color 0.15s;
-    }
-    .modal-tab:hover { color: #111; }
-    .modal-tab.active {
-      color: #059669;
-    }
-    .modal-tab.active::after {
-      content: ''; position: absolute; bottom: -2px; left: 0; right: 0;
-      height: 2px; background: #059669;
-    }
-    .modal-tab .tab-count {
-      display: inline-block; margin-left: 6px; padding: 1px 7px;
-      border-radius: 10px; font-size: 11px; font-weight: 700;
-      background: #e5e7eb; color: #6b7280;
-    }
-    .modal-tab.active .tab-count { background: #d1fae5; color: #059669; }
-    .tab-panel { display: none; }
-    .tab-panel.active { display: block; }
+    /* ── Table ── */
+    .table-card{background:white;border-radius:12px;overflow:hidden;border:1px solid #e2e8f0}
+    table{width:100%;border-collapse:collapse}
+    thead th{text-align:left;padding:12px 16px;font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em;background:#f8fafc;border-bottom:1px solid #e2e8f0}
+    tbody td{padding:12px 16px;font-size:13px;border-bottom:1px solid #f1f5f9}
+    tbody tr{cursor:pointer;transition:background .12s}
+    tbody tr:hover{background:#f0fdf4}
+    tbody tr:last-child td{border-bottom:none}
+    .badge{display:inline-block;padding:2px 8px;border-radius:5px;font-size:10px;font-weight:700;letter-spacing:.02em}
+    .badge-공영{background:#ecfdf5;color:#059669}
+    .badge-민영{background:#dbeafe;color:#2563eb}
+    .parking-name{font-weight:600;color:#0f172a}
+    .parking-addr{font-size:11px;color:#94a3b8;margin-top:2px;max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .loading{text-align:center;padding:60px;color:#94a3b8;font-size:14px}
+    .empty{text-align:center;padding:60px;color:#94a3b8;font-size:14px}
+    .btn{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;transition:all .15s;text-decoration:none;white-space:nowrap}
+    .btn:disabled{opacity:.5;cursor:not-allowed}
+    .btn-primary{background:#10b981;color:white}
+    .btn-primary:hover{background:#059669}
+    .btn-gray{background:#e2e8f0;color:#475569}
+    .btn-gray:hover{background:#cbd5e1}
+    .btn-view{background:#f1f5f9;color:#475569;padding:4px 10px;font-size:11px;border:1px solid #e2e8f0;border-radius:6px}
+    .btn-view:hover{background:#e2e8f0}
+    .td-actions{display:flex;gap:6px;align-items:center}
 
-    /* 사진 관리 */
-    .photo-drop {
-      border: 2px dashed #d1d5db; border-radius: 12px; padding: 40px 20px;
-      text-align: center; cursor: pointer; transition: all 0.2s;
-      background: #fafafa; margin-bottom: 16px;
-    }
-    .photo-drop:hover, .photo-drop.dragover {
-      border-color: #059669; background: #ecfdf5;
-    }
-    .photo-drop-icon { font-size: 40px; margin-bottom: 8px; }
-    .photo-drop-text { font-size: 14px; color: #6b7280; }
-    .photo-drop-sub { font-size: 12px; color: #9ca3af; margin-top: 4px; }
-    .photo-grid {
-      display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-      gap: 12px; margin-top: 16px;
-    }
-    .photo-item {
-      position: relative; border-radius: 10px; overflow: hidden;
-      background: #f3f4f6; aspect-ratio: 4/3;
-    }
-    .photo-item img {
-      width: 100%; height: 100%; object-fit: cover;
-    }
-    .photo-item .photo-delete {
-      position: absolute; top: 6px; right: 6px;
-      width: 28px; height: 28px; border-radius: 50%;
-      background: rgba(220,38,38,0.9); color: white;
-      border: none; cursor: pointer; font-size: 16px;
-      display: flex; align-items: center; justify-content: center;
-      opacity: 0; transition: opacity 0.15s;
-    }
-    .photo-item:hover .photo-delete { opacity: 1; }
-    .photo-item .photo-name {
-      position: absolute; bottom: 0; left: 0; right: 0;
-      padding: 4px 8px; background: rgba(0,0,0,0.6);
-      color: white; font-size: 11px; text-align: center;
-    }
-    .photo-uploading {
-      position: absolute; top: 0; left: 0; right: 0; bottom: 0;
-      background: rgba(255,255,255,0.8); display: flex;
-      align-items: center; justify-content: center;
-      font-size: 13px; font-weight: 600; color: #059669;
-    }
-    .photo-msg { font-size: 13px; margin-top: 8px; }
+    /* ── Modal ── */
+    .modal-overlay{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(15,23,42,.5);z-index:100;backdrop-filter:blur(2px)}
+    .modal{position:fixed;top:3%;left:50%;transform:translateX(-50%);width:92%;max-width:860px;max-height:94vh;background:white;border-radius:16px;z-index:101;display:flex;flex-direction:column;box-shadow:0 25px 60px rgba(0,0,0,.15)}
+    .modal-header{padding:18px 24px;border-bottom:1px solid #e2e8f0;display:flex;justify-content:space-between;align-items:center}
+    .modal-header h2{font-size:17px;font-weight:800;color:#0f172a}
+    .modal-header .header-sub{font-size:11px;color:#94a3b8;margin-top:2px;font-family:'SF Mono','Fira Code',monospace}
+
+    /* ── Modal Tabs ── */
+    .modal-tabs{display:flex;gap:0;border-bottom:1px solid #e2e8f0;padding:0 24px;background:#f8fafc}
+    .modal-tab{padding:11px 18px;border:none;background:none;font-size:13px;font-weight:600;color:#64748b;cursor:pointer;position:relative;transition:color .15s}
+    .modal-tab:hover{color:#1e293b}
+    .modal-tab.active{color:#10b981}
+    .modal-tab.active::after{content:'';position:absolute;bottom:-1px;left:0;right:0;height:2px;background:#10b981}
+    .tab-count{display:inline-block;margin-left:5px;padding:1px 7px;border-radius:10px;font-size:10px;font-weight:700;background:rgba(100,116,139,.12);color:#64748b}
+    .modal-tab.active .tab-count{background:rgba(16,185,129,.12);color:#10b981}
+    .tab-panel{display:none}
+    .tab-panel.active{display:block}
+
+    /* ── Modal Body ── */
+    .modal-body{padding:0;overflow-y:auto;flex:1}
+    .modal-body .tab-panel{padding:20px 24px}
+    .modal-footer{padding:14px 24px;border-top:1px solid #e2e8f0;display:flex;gap:10px;justify-content:flex-end}
+
+    /* ── Form Section ── */
+    .form-section{margin-bottom:20px}
+    .form-section-title{font-size:12px;font-weight:700;color:#10b981;text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid #f1f5f9;display:flex;align-items:center;gap:6px}
+    .form-section-title span{font-size:14px}
+    .form-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px}
+    .form-row-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:10px}
+    .form-group{margin-bottom:10px}
+    .form-group label{display:block;font-size:11px;font-weight:600;color:#64748b;margin-bottom:4px;letter-spacing:.02em}
+    .form-group input,.form-group textarea,.form-group select{width:100%;padding:8px 10px;border:1px solid #e2e8f0;border-radius:7px;font-size:13px;color:#1e293b;outline:none;font-family:inherit;transition:all .15s;background:white}
+    .form-group input:focus,.form-group textarea:focus,.form-group select:focus{border-color:#10b981;box-shadow:0 0 0 3px rgba(16,185,129,.08)}
+    .form-group input[readonly]{background:#f8fafc;color:#94a3b8;cursor:not-allowed}
+    .form-group textarea{min-height:100px;resize:vertical;font-family:'SF Mono','Fira Code',monospace;font-size:12px;line-height:1.5}
+    .form-group select{cursor:pointer}
+    .msg{padding:10px 14px;border-radius:8px;font-size:13px;margin-top:10px;display:none}
+    .msg-success{background:#ecfdf5;color:#065f46;border:1px solid #a7f3d0}
+    .msg-error{background:#fef2f2;color:#991b1b;border:1px solid #fecaca}
+
+    /* ── Photo Management ── */
+    .photo-drop{border:2px dashed #d1d5db;border-radius:12px;padding:36px 20px;text-align:center;cursor:pointer;transition:all .2s;background:#fafafa;margin-bottom:14px}
+    .photo-drop:hover,.photo-drop.dragover{border-color:#10b981;background:#ecfdf5}
+    .photo-drop-icon{font-size:36px;margin-bottom:6px}
+    .photo-drop-text{font-size:13px;color:#64748b}
+    .photo-drop-sub{font-size:11px;color:#94a3b8;margin-top:3px}
+    .photo-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-top:14px}
+    .photo-item{position:relative;border-radius:10px;overflow:hidden;background:#f1f5f9;aspect-ratio:4/3}
+    .photo-item img{width:100%;height:100%;object-fit:cover}
+    .photo-item .photo-delete{position:absolute;top:5px;right:5px;width:26px;height:26px;border-radius:50%;background:rgba(220,38,38,.9);color:white;border:none;cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity .15s}
+    .photo-item:hover .photo-delete{opacity:1}
+    .photo-item .photo-name{position:absolute;bottom:0;left:0;right:0;padding:3px 6px;background:rgba(0,0,0,.55);color:white;font-size:10px;text-align:center}
+    .photo-msg{font-size:13px;margin-top:6px}
   </style>
 </head>
 <body>
   <aside class="sidebar">
-    <div class="logo"><span>P</span> Admin</div>
+    <div class="sidebar-header">
+      <a href="/admin/parking/" class="sidebar-logo">
+        <div class="logo-icon">P</div>
+        ParkingMap
+      </a>
+    </div>
     <nav>
-      <a href="/admin/">대시보드</a>
-      <a href="/admin/blog/">블로그 관리</a>
-      <a href="/admin/parking/" class="active">주차장 관리</a>
-      <a href="/" target="_blank">사이트 보기</a>
+      <a href="/admin/parking/" class="active"><span class="nav-icon">🅿️</span> 주차장 관리</a>
+      <a href="/admin/blog/"><span class="nav-icon">📝</span> 블로그 관리</a>
     </nav>
+    <div class="sidebar-footer">
+      <button class="logout-btn" id="logoutBtn">로그아웃</button>
+    </div>
   </aside>
 
   <div class="main">
-    <div class="header">
-      <h1 id="pageTitle">주차장 데이터 관리</h1>
-      <p>개별 주차장을 검색하고 편집합니다. 저장 시 GitHub에 커밋 → Vercel 자동 배포됩니다.</p>
+    <div class="page-header">
+      <div>
+        <h1 id="pageTitle">주차장 관리</h1>
+        <p class="subtitle" id="pageSubtitle">데이터 로딩 중...</p>
+      </div>
     </div>
 
     <div class="controls">
-      <input
-        type="text"
-        id="searchInput"
-        placeholder="주차장 이름 또는 주소 검색..."
-      />
+      <input type="text" id="searchInput" placeholder="주차장 이름 또는 주소 검색..." />
       <select id="districtFilter">
         <option value="">전체 구</option>
       </select>
@@ -224,25 +156,20 @@ export const prerender = false;
       </select>
     </div>
 
-    <div class="table-container">
-      <div id="loadingState" class="loading">
-        <div>데이터 로딩 중...</div>
-      </div>
-      <div id="emptyState" class="empty" style="display: none;">
-        검색 결과가 없습니다.
-      </div>
-      <table id="parkingTable" style="display: none;">
+    <div class="table-card">
+      <div id="loadingState" class="loading">데이터 로딩 중...</div>
+      <div id="emptyState" class="empty" style="display:none;">검색 결과가 없습니다.</div>
+      <table id="parkingTable" style="display:none;">
         <thead>
           <tr>
             <th>구</th>
-            <th>이름</th>
+            <th>주차장</th>
             <th>유형</th>
-            <th>주소</th>
-            <th style="text-align: right;">주차면수</th>
+            <th style="text-align:right;">주차면수</th>
+            <th style="width:130px;">관리</th>
           </tr>
         </thead>
-        <tbody id="parkingTableBody">
-        </tbody>
+        <tbody id="parkingTableBody"></tbody>
       </table>
     </div>
   </div>
@@ -251,20 +178,177 @@ export const prerender = false;
   <div class="modal-overlay" id="modalOverlay">
     <div class="modal">
       <div class="modal-header">
-        <h2 id="modalTitle">-</h2>
-        <button class="btn btn-gray" id="modalClose" style="padding:6px 12px;">닫기</button>
+        <div>
+          <h2 id="modalTitle">-</h2>
+          <p class="header-sub" id="modalSubtitle"></p>
+        </div>
+        <button class="btn btn-gray" id="modalClose" style="padding:6px 12px;font-size:12px;">닫기</button>
       </div>
       <div class="modal-tabs">
-        <button class="modal-tab active" data-tab="json">데이터 편집</button>
+        <button class="modal-tab active" data-tab="form">데이터 편집</button>
         <button class="modal-tab" data-tab="photos">사진 관리 <span class="tab-count" id="photoCount">0</span></button>
       </div>
       <div class="modal-body">
-        <!-- 데이터 편집 탭 -->
-        <div class="tab-panel active" id="tabJson">
-          <textarea id="jsonEditor" spellcheck="false"></textarea>
+        <!-- 데이터 편집 탭 (폼) -->
+        <div class="tab-panel active" id="tabForm">
+          <div class="form-section">
+            <div class="form-section-title"><span>📌</span> 기본 정보</div>
+            <div class="form-group">
+              <label>주차장 이름</label>
+              <input type="text" id="f_name" />
+            </div>
+            <div class="form-row-3">
+              <div class="form-group">
+                <label>유형</label>
+                <select id="f_type"><option value="공영">공영</option><option value="민영">민영</option></select>
+              </div>
+              <div class="form-group">
+                <label>분류</label>
+                <select id="f_category"><option value="노상">노상</option><option value="노외">노외</option><option value="부설">부설</option></select>
+              </div>
+              <div class="form-group">
+                <label>총 주차면수</label>
+                <input type="number" id="f_totalSpaces" min="0" />
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label>전화번호</label>
+                <input type="text" id="f_phone" placeholder="02-000-0000" />
+              </div>
+              <div class="form-group">
+                <label>슬러그 (URL 경로)</label>
+                <input type="text" id="f_slug" placeholder="parking-slug" />
+              </div>
+            </div>
+          </div>
+
+          <div class="form-section">
+            <div class="form-section-title"><span>📍</span> 위치 정보</div>
+            <div class="form-group">
+              <label>지번 주소</label>
+              <input type="text" id="f_address" />
+            </div>
+            <div class="form-group">
+              <label>도로명 주소</label>
+              <input type="text" id="f_roadAddress" />
+            </div>
+            <div class="form-row-3">
+              <div class="form-group">
+                <label>시/도</label>
+                <input type="text" id="f_sido" readonly />
+              </div>
+              <div class="form-group">
+                <label>시/군/구</label>
+                <input type="text" id="f_sigungu" readonly />
+              </div>
+              <div class="form-group">
+                <label>읍/면/동</label>
+                <input type="text" id="f_dong" />
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label>위도 (lat)</label>
+                <input type="text" id="f_lat" />
+              </div>
+              <div class="form-group">
+                <label>경도 (lng)</label>
+                <input type="text" id="f_lng" />
+              </div>
+            </div>
+          </div>
+
+          <div class="form-section">
+            <div class="form-section-title"><span>🕐</span> 운영 시간</div>
+            <div class="form-group">
+              <label>운영 요일</label>
+              <input type="text" id="f_operatingDays" placeholder="평일+토요일+공휴일" />
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label>평일 시작</label>
+                <input type="text" id="f_weekdayOpen" placeholder="09:00" />
+              </div>
+              <div class="form-group">
+                <label>평일 종료</label>
+                <input type="text" id="f_weekdayClose" placeholder="18:00" />
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label>주말 시작</label>
+                <input type="text" id="f_weekendOpen" placeholder="09:00" />
+              </div>
+              <div class="form-group">
+                <label>주말 종료</label>
+                <input type="text" id="f_weekendClose" placeholder="18:00" />
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label>공휴일 시작</label>
+                <input type="text" id="f_holidayOpen" placeholder="09:00" />
+              </div>
+              <div class="form-group">
+                <label>공휴일 종료</label>
+                <input type="text" id="f_holidayClose" placeholder="18:00" />
+              </div>
+            </div>
+          </div>
+
+          <div class="form-section">
+            <div class="form-section-title"><span>💰</span> 요금 정보</div>
+            <div class="form-row-3">
+              <div class="form-group">
+                <label>무료 여부</label>
+                <select id="f_isFree"><option value="N">유료 (N)</option><option value="Y">무료 (Y)</option></select>
+              </div>
+              <div class="form-group">
+                <label>기본 시간 (분)</label>
+                <input type="text" id="f_basicTime" placeholder="30" />
+              </div>
+              <div class="form-group">
+                <label>기본 요금 (원)</label>
+                <input type="text" id="f_basicCharge" placeholder="1000" />
+              </div>
+            </div>
+            <div class="form-row-3">
+              <div class="form-group">
+                <label>추가 단위 (분)</label>
+                <input type="text" id="f_addUnitTime" placeholder="10" />
+              </div>
+              <div class="form-group">
+                <label>추가 요금 (원)</label>
+                <input type="text" id="f_addUnitCharge" placeholder="500" />
+              </div>
+              <div class="form-group">
+                <label>월 정기권 (원)</label>
+                <input type="text" id="f_monthlyPass" placeholder="100000" />
+              </div>
+            </div>
+            <div class="form-group">
+              <label>요금 안내</label>
+              <input type="text" id="f_feeInfo" placeholder="요금 관련 안내 사항" />
+            </div>
+          </div>
+
+          <div class="form-section">
+            <div class="form-section-title"><span>📝</span> 에디터 메모</div>
+            <div class="form-group">
+              <label>에디터의 의견</label>
+              <textarea id="f_editorOpinion" placeholder="현장 방문 후 느낀 점, 팁, 특이사항 등을 자유롭게 작성하세요..."></textarea>
+            </div>
+            <div class="form-group">
+              <label>최종 수정일</label>
+              <input type="text" id="f_updatedAt" placeholder="2025-01-01" />
+            </div>
+          </div>
+
           <div class="msg msg-success" id="saveSuccess">저장 완료!</div>
           <div class="msg msg-error" id="saveError"></div>
         </div>
+
         <!-- 사진 관리 탭 -->
         <div class="tab-panel" id="tabPhotos">
           <div class="photo-drop" id="photoDrop">
@@ -278,131 +362,129 @@ export const prerender = false;
           <div class="photo-grid" id="photoGrid"></div>
         </div>
       </div>
-      <div class="modal-footer" id="jsonFooter">
-        <button class="btn btn-gray" id="formatBtn">JSON 정렬</button>
-        <button class="btn btn-primary" id="saveJsonBtn">GitHub에 저장</button>
+      <div class="modal-footer" id="formFooter">
+        <button class="btn btn-gray" id="modalCloseFooter">취소</button>
+        <button class="btn btn-primary" id="saveFormBtn">GitHub에 저장</button>
       </div>
     </div>
   </div>
 
   <script is:inline>
     const districts = [
-      '강남구', '강동구', '강북구', '강서구', '관악구',
-      '광진구', '구로구', '금천구', '노원구', '도봉구',
-      '동대문구', '동작구', '마포구', '서대문구', '서초구',
-      '성동구', '성북구', '송파구', '양천구', '영등포구',
-      '용산구', '은평구', '종로구', '중구', '중랑구',
+      '강남구','강동구','강북구','강서구','관악구',
+      '광진구','구로구','금천구','노원구','도봉구',
+      '동대문구','동작구','마포구','서대문구','서초구',
+      '성동구','성북구','송파구','양천구','영등포구',
+      '용산구','은평구','종로구','중구','중랑구',
     ];
 
-    let allParkingLots = []; // { district, parking, originalIndex }
+    // 폼 필드 매핑
+    const FORM_FIELDS = [
+      'name','type','category','totalSpaces','phone','slug',
+      'address','roadAddress','sido','sigungu','dong','lat','lng',
+      'operatingDays','weekdayOpen','weekdayClose','weekendOpen','weekendClose','holidayOpen','holidayClose',
+      'isFree','basicTime','basicCharge','addUnitTime','addUnitCharge','monthlyPass','feeInfo',
+      'editorOpinion','updatedAt'
+    ];
+
+    let allParkingLots = [];
     let filteredParkingLots = [];
     let currentEditingParking = null;
 
-    // 초기 로딩
+    // ─── 데이터 로딩 ───
     async function loadAllParkingData() {
       try {
         const promises = districts.map(d =>
-          fetch(`/data/parking/서울특별시/${d}.json`)
+          fetch('/data/parking/서울특별시/' + d + '.json')
             .then(res => res.json())
-            .then(data => ({
-              district: d,
-              items: data.items || []
-            }))
+            .then(data => ({ district: d, items: data.items || [] }))
         );
-
         const results = await Promise.all(promises);
 
         allParkingLots = [];
         results.forEach(({ district, items }) => {
           items.forEach((parking, idx) => {
-            allParkingLots.push({
-              district,
-              parking,
-              originalIndex: idx
-            });
+            allParkingLots.push({ district, parking, originalIndex: idx });
           });
         });
 
-        // 페이지 제목 업데이트
-        document.getElementById('pageTitle').textContent = `주차장 데이터 관리 (${allParkingLots.length}개)`;
+        document.getElementById('pageTitle').textContent = '주차장 관리';
+        document.getElementById('pageSubtitle').textContent = '총 ' + allParkingLots.length + '개 주차장';
 
-        // 구 필터 채우기
         const districtFilter = document.getElementById('districtFilter');
         districts.forEach(d => {
-          const option = document.createElement('option');
-          option.value = d;
-          option.textContent = d;
-          districtFilter.appendChild(option);
+          const opt = document.createElement('option');
+          opt.value = d; opt.textContent = d;
+          districtFilter.appendChild(opt);
         });
 
-        // 초기 렌더링
         applyFilters();
-
       } catch (e) {
-        console.error('데이터 로딩 실패:', e);
-        document.getElementById('loadingState').innerHTML = `<div style="color: #dc2626;">데이터 로딩 실패: ${e.message}</div>`;
+        document.getElementById('loadingState').innerHTML = '<div style="color:#dc2626;">데이터 로딩 실패: ' + e.message + '</div>';
       }
     }
 
-    // 필터 적용
+    // ─── 필터 ───
     function applyFilters() {
-      const searchTerm = document.getElementById('searchInput').value.toLowerCase();
-      const districtFilter = document.getElementById('districtFilter').value;
-      const typeFilter = document.getElementById('typeFilter').value;
+      const search = document.getElementById('searchInput').value.toLowerCase();
+      const dist = document.getElementById('districtFilter').value;
+      const type = document.getElementById('typeFilter').value;
 
       filteredParkingLots = allParkingLots.filter(({ district, parking }) => {
-        // 검색어 필터
-        const matchesSearch = !searchTerm ||
-          parking.name.toLowerCase().includes(searchTerm) ||
-          (parking.address || '').toLowerCase().includes(searchTerm) ||
-          (parking.roadAddress || '').toLowerCase().includes(searchTerm);
-
-        // 구 필터
-        const matchesDistrict = !districtFilter || district === districtFilter;
-
-        // 유형 필터
-        const matchesType = !typeFilter || parking.type === typeFilter;
-
-        return matchesSearch && matchesDistrict && matchesType;
+        const matchSearch = !search ||
+          parking.name.toLowerCase().includes(search) ||
+          (parking.address || '').toLowerCase().includes(search) ||
+          (parking.roadAddress || '').toLowerCase().includes(search);
+        const matchDist = !dist || district === dist;
+        const matchType = !type || parking.type === type;
+        return matchSearch && matchDist && matchType;
       });
 
       renderTable();
     }
 
-    // 테이블 렌더링
+    // ─── 테이블 렌더링 ───
     function renderTable() {
-      const loadingState = document.getElementById('loadingState');
-      const emptyState = document.getElementById('emptyState');
+      const loadingEl = document.getElementById('loadingState');
+      const emptyEl = document.getElementById('emptyState');
       const table = document.getElementById('parkingTable');
       const tbody = document.getElementById('parkingTableBody');
 
-      loadingState.style.display = 'none';
+      loadingEl.style.display = 'none';
 
       if (filteredParkingLots.length === 0) {
-        emptyState.style.display = 'block';
+        emptyEl.style.display = 'block';
         table.style.display = 'none';
         return;
       }
 
-      emptyState.style.display = 'none';
+      emptyEl.style.display = 'none';
       table.style.display = 'table';
 
-      tbody.innerHTML = '';
-      filteredParkingLots.forEach(({ district, parking, originalIndex }) => {
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-          <td>${district}</td>
-          <td><strong>${parking.name}</strong></td>
-          <td><span class="type-badge type-${parking.type}">${parking.type}</span></td>
-          <td style="max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${parking.roadAddress || parking.address}</td>
-          <td style="text-align: right;">${parking.totalSpaces || 0}면</td>
-        `;
-        tr.addEventListener('click', () => openEditor(district, parking, originalIndex));
-        tbody.appendChild(tr);
-      });
+      tbody.innerHTML = filteredParkingLots.map(({ district, parking, originalIndex }) => {
+        const addr = parking.roadAddress || parking.address || '';
+        const slug = parking.slug;
+        const dong = parking.dong;
+        const sido = parking.sido || '서울특별시';
+        const sigungu = parking.sigungu || district;
+
+        let viewBtn = '';
+        if (slug && dong) {
+          const viewUrl = '/' + encodeURIComponent(sido) + '/' + encodeURIComponent(sigungu) + '/' + encodeURIComponent(dong) + '/' + encodeURIComponent(slug) + '/';
+          viewBtn = '<a href="' + viewUrl + '" target="_blank" class="btn btn-view" onclick="event.stopPropagation();">보기 ↗</a>';
+        }
+
+        return '<tr onclick="openEditor(\'' + district + '\',' + originalIndex + ')">' +
+          '<td>' + district + '</td>' +
+          '<td><div class="parking-name">' + parking.name + '</div><div class="parking-addr">' + addr + '</div></td>' +
+          '<td><span class="badge badge-' + parking.type + '">' + parking.type + '</span></td>' +
+          '<td style="text-align:right;">' + (parking.totalSpaces || 0) + '면</td>' +
+          '<td><div class="td-actions"><button class="btn btn-primary" style="padding:4px 10px;font-size:11px;" onclick="event.stopPropagation();openEditor(\'' + district + '\',' + originalIndex + ')">편집</button>' + viewBtn + '</div></td>' +
+        '</tr>';
+      }).join('');
     }
 
-    // 이벤트 리스너
+    // ─── 이벤트 리스너 ───
     document.getElementById('searchInput').addEventListener('input', applyFilters);
     document.getElementById('districtFilter').addEventListener('change', applyFilters);
     document.getElementById('typeFilter').addEventListener('change', applyFilters);
@@ -417,341 +499,109 @@ export const prerender = false;
       tab.classList.add('active');
 
       document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
-      document.getElementById(tabName === 'json' ? 'tabJson' : 'tabPhotos').classList.add('active');
+      document.getElementById(tabName === 'form' ? 'tabForm' : 'tabPhotos').classList.add('active');
 
-      // 풋터 표시/숨기기 (사진 탭에선 풋터 숨김)
-      document.getElementById('jsonFooter').style.display = tabName === 'json' ? 'flex' : 'none';
+      document.getElementById('formFooter').style.display = tabName === 'form' ? 'flex' : 'none';
 
-      // 사진 탭 열면 이미지 로드
       if (tabName === 'photos' && currentEditingParking) {
         loadPhotos();
       }
     });
 
-    // 편집 모달 열기
-    async function openEditor(district, parking, originalIndex) {
+    // ─── 모달 열기 ───
+    window.openEditor = function(district, originalIndex) {
+      const lot = allParkingLots.find(p => p.district === district && p.originalIndex === originalIndex);
+      if (!lot) return;
+
+      const parking = lot.parking;
       currentEditingParking = { district, parking, originalIndex };
 
-      document.getElementById('modalTitle').textContent = `${parking.name} (${district})`;
+      document.getElementById('modalTitle').textContent = parking.name;
+      document.getElementById('modalSubtitle').textContent = district + ' · ' + (parking.roadAddress || parking.address || '');
       document.getElementById('modalOverlay').style.display = 'block';
-      document.getElementById('jsonEditor').value = '불러오는 중...';
       document.getElementById('saveSuccess').style.display = 'none';
       document.getElementById('saveError').style.display = 'none';
       document.getElementById('photoSuccess').style.display = 'none';
       document.getElementById('photoError').style.display = 'none';
 
-      // 탭 초기화 (항상 데이터 편집 탭으로)
+      // 탭 초기화
       document.querySelectorAll('.modal-tab').forEach(t => t.classList.remove('active'));
-      document.querySelector('.modal-tab[data-tab="json"]').classList.add('active');
+      document.querySelector('.modal-tab[data-tab="form"]').classList.add('active');
       document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
-      document.getElementById('tabJson').classList.add('active');
-      document.getElementById('jsonFooter').style.display = 'flex';
+      document.getElementById('tabForm').classList.add('active');
+      document.getElementById('formFooter').style.display = 'flex';
 
-      // 사진 개수 표시
-      const imgCount = (parking.images || []).length;
-      document.getElementById('photoCount').textContent = imgCount;
+      // 사진 개수
+      document.getElementById('photoCount').textContent = (parking.images || []).length;
 
-      // 개별 주차장 JSON 표시
-      try {
-        const formatted = JSON.stringify(parking, null, 2);
-        document.getElementById('jsonEditor').value = formatted;
-      } catch (e) {
-        document.getElementById('jsonEditor').value = '// JSON 변환 오류: ' + e.message;
-      }
-    }
-
-    // 모달 닫기
-    document.getElementById('modalClose').addEventListener('click', () => {
-      document.getElementById('modalOverlay').style.display = 'none';
-    });
-
-    document.getElementById('modalOverlay').addEventListener('click', (e) => {
-      if (e.target === document.getElementById('modalOverlay')) {
-        document.getElementById('modalOverlay').style.display = 'none';
-      }
-    });
-
-    // ─── 사진 관리 ───
-    let currentPhotos = []; // { name, path, sha, url }
-
-    async function loadPhotos() {
-      const grid = document.getElementById('photoGrid');
-      grid.innerHTML = '<div style="text-align:center;padding:20px;color:#888;">불러오는 중...</div>';
-
-      const { district, parking } = currentEditingParking;
-      const slug = parking.slug;
-
-      if (!slug) {
-        grid.innerHTML = '<div style="text-align:center;padding:20px;color:#dc2626;">이 주차장에 slug가 없습니다. JSON에서 slug를 먼저 설정하세요.</div>';
-        return;
-      }
-
-      try {
-        const res = await fetch(`/api/admin/parking-images/?district=${encodeURIComponent(district)}&slug=${encodeURIComponent(slug)}`);
-        const data = await res.json();
-        currentPhotos = data.images || [];
-        document.getElementById('photoCount').textContent = currentPhotos.length;
-        renderPhotos();
-      } catch (e) {
-        grid.innerHTML = `<div style="text-align:center;padding:20px;color:#dc2626;">로딩 실패: ${e.message}</div>`;
-      }
-    }
-
-    function renderPhotos() {
-      const grid = document.getElementById('photoGrid');
-
-      if (currentPhotos.length === 0) {
-        grid.innerHTML = '<div style="text-align:center;padding:30px;color:#9ca3af;font-size:14px;">등록된 사진이 없습니다.</div>';
-        return;
-      }
-
-      grid.innerHTML = currentPhotos.map((photo, i) => `
-        <div class="photo-item" data-index="${i}">
-          <img src="${photo.url}" alt="${photo.name}" loading="lazy" />
-          <button class="photo-delete" onclick="deletePhoto(${i})" title="삭제">×</button>
-          <div class="photo-name">${photo.name}</div>
-        </div>
-      `).join('');
-    }
-
-    // 드래그 앤 드롭
-    const dropZone = document.getElementById('photoDrop');
-    const fileInput = document.getElementById('photoFileInput');
-
-    dropZone.addEventListener('click', () => fileInput.click());
-
-    dropZone.addEventListener('dragover', (e) => {
-      e.preventDefault();
-      dropZone.classList.add('dragover');
-    });
-
-    dropZone.addEventListener('dragleave', () => {
-      dropZone.classList.remove('dragover');
-    });
-
-    dropZone.addEventListener('drop', (e) => {
-      e.preventDefault();
-      dropZone.classList.remove('dragover');
-      handleFiles(e.dataTransfer.files);
-    });
-
-    fileInput.addEventListener('change', (e) => {
-      handleFiles(e.target.files);
-      fileInput.value = '';
-    });
-
-    async function handleFiles(files) {
-      if (!currentEditingParking) return;
-
-      const { district, parking, originalIndex } = currentEditingParking;
-      const slug = parking.slug;
-
-      if (!slug) {
-        showPhotoError('이 주차장에 slug가 없습니다. JSON에서 slug를 먼저 설정하세요.');
-        return;
-      }
-
-      const maxPhotos = 10;
-      const remaining = maxPhotos - currentPhotos.length;
-      const filesToProcess = Array.from(files).slice(0, remaining);
-
-      if (filesToProcess.length === 0) {
-        showPhotoError('최대 10장까지 업로드할 수 있습니다.');
-        return;
-      }
-
-      showPhotoSuccess(`${filesToProcess.length}장 업로드 중...`);
-
-      for (const file of filesToProcess) {
-        try {
-          // 1. WebP로 변환
-          const base64 = await convertToWebP(file);
-
-          // 2. 파일명 생성 (01.webp ~ 10.webp)
-          const nextNum = getNextFileName();
-          const fileName = nextNum + '.webp';
-
-          // 3. 업로드
-          const res = await fetch('/api/admin/parking-images/', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              district,
-              slug,
-              fileName,
-              base64Data: base64,
-              originalIndex,
-            }),
-          });
-
-          const result = await res.json();
-          if (!res.ok) throw new Error(result.error);
-
-          showPhotoSuccess(`${fileName} 업로드 완료!`);
-        } catch (e) {
-          showPhotoError(`업로드 실패: ${e.message}`);
+      // 폼에 데이터 채우기
+      FORM_FIELDS.forEach(key => {
+        const el = document.getElementById('f_' + key);
+        if (!el) return;
+        const val = parking[key];
+        if (el.tagName === 'SELECT') {
+          el.value = val || el.options[0].value;
+        } else if (el.tagName === 'TEXTAREA') {
+          el.value = val || '';
+        } else {
+          el.value = val != null ? val : '';
         }
-      }
-
-      // 업로드 후 새로고침
-      await loadPhotos();
-      showPhotoSuccess('모든 사진 업로드 완료!');
-    }
-
-    function getNextFileName() {
-      const existingNums = currentPhotos
-        .map(p => parseInt(p.name.replace('.webp', ''), 10))
-        .filter(n => !isNaN(n));
-
-      let next = 1;
-      while (existingNums.includes(next)) next++;
-      return String(next).padStart(2, '0');
-    }
-
-    // Canvas API로 WebP 변환
-    function convertToWebP(file) {
-      return new Promise((resolve, reject) => {
-        const img = new Image();
-        const reader = new FileReader();
-
-        reader.onload = (e) => {
-          img.onload = () => {
-            const canvas = document.createElement('canvas');
-            // 최대 1200px 리사이즈
-            const maxSize = 1200;
-            let w = img.width;
-            let h = img.height;
-
-            if (w > maxSize || h > maxSize) {
-              if (w > h) {
-                h = Math.round(h * maxSize / w);
-                w = maxSize;
-              } else {
-                w = Math.round(w * maxSize / h);
-                h = maxSize;
-              }
-            }
-
-            canvas.width = w;
-            canvas.height = h;
-
-            const ctx = canvas.getContext('2d');
-            ctx.drawImage(img, 0, 0, w, h);
-
-            // WebP로 변환 (품질 80%)
-            const dataUrl = canvas.toDataURL('image/webp', 0.8);
-            // data:image/webp;base64, 부분 제거
-            const base64 = dataUrl.split(',')[1];
-            resolve(base64);
-          };
-
-          img.onerror = () => reject(new Error('이미지 로드 실패'));
-          img.src = e.target.result;
-        };
-
-        reader.onerror = () => reject(new Error('파일 읽기 실패'));
-        reader.readAsDataURL(file);
       });
+
+      // 스크롤 맨 위로
+      document.querySelector('.modal-body').scrollTop = 0;
+    };
+
+    // ─── 모달 닫기 ───
+    function closeModal() {
+      document.getElementById('modalOverlay').style.display = 'none';
     }
-
-    // 사진 삭제
-    async function deletePhoto(index) {
-      const photo = currentPhotos[index];
-      if (!photo) return;
-      if (!confirm(`"${photo.name}" 사진을 삭제하시겠습니까?`)) return;
-
-      const { district, parking, originalIndex } = currentEditingParking;
-
-      try {
-        const res = await fetch('/api/admin/parking-images/', {
-          method: 'DELETE',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            district,
-            slug: parking.slug,
-            fileName: photo.name,
-            sha: photo.sha,
-            originalIndex,
-          }),
-        });
-
-        const result = await res.json();
-        if (!res.ok) throw new Error(result.error);
-
-        showPhotoSuccess(`${photo.name} 삭제 완료!`);
-        await loadPhotos();
-      } catch (e) {
-        showPhotoError(`삭제 실패: ${e.message}`);
-      }
-    }
-
-    function showPhotoSuccess(msg) {
-      const el = document.getElementById('photoSuccess');
-      el.textContent = msg;
-      el.style.display = 'block';
-      document.getElementById('photoError').style.display = 'none';
-    }
-
-    function showPhotoError(msg) {
-      const el = document.getElementById('photoError');
-      el.textContent = msg;
-      el.style.display = 'block';
-      document.getElementById('photoSuccess').style.display = 'none';
-    }
-
-    // JSON 정렬
-    document.getElementById('formatBtn').addEventListener('click', () => {
-      const editor = document.getElementById('jsonEditor');
-      try {
-        const parsed = JSON.parse(editor.value);
-        editor.value = JSON.stringify(parsed, null, 2);
-      } catch (e) {
-        alert('JSON 형식 오류: ' + e.message);
-      }
+    document.getElementById('modalClose').addEventListener('click', closeModal);
+    document.getElementById('modalCloseFooter').addEventListener('click', closeModal);
+    document.getElementById('modalOverlay').addEventListener('click', (e) => {
+      if (e.target === document.getElementById('modalOverlay')) closeModal();
     });
 
-    // 저장
-    document.getElementById('saveJsonBtn').addEventListener('click', async () => {
+    // ─── 폼 저장 ───
+    document.getElementById('saveFormBtn').addEventListener('click', async () => {
       if (!currentEditingParking) return;
 
-      const btn = document.getElementById('saveJsonBtn');
-      const successMsg = document.getElementById('saveSuccess');
-      const errorMsg = document.getElementById('saveError');
+      const btn = document.getElementById('saveFormBtn');
+      const okMsg = document.getElementById('saveSuccess');
+      const errMsg = document.getElementById('saveError');
+      btn.disabled = true; btn.textContent = '저장 중...';
+      okMsg.style.display = 'none'; errMsg.style.display = 'none';
 
-      btn.disabled = true;
-      btn.textContent = '저장 중...';
-      successMsg.style.display = 'none';
-      errorMsg.style.display = 'none';
+      // 폼 값 수집 → 기존 parking 객체에 머지
+      const updated = Object.assign({}, currentEditingParking.parking);
+      FORM_FIELDS.forEach(key => {
+        const el = document.getElementById('f_' + key);
+        if (!el) return;
+        let val = el.value;
 
-      // JSON 유효성 검사
-      const content = document.getElementById('jsonEditor').value;
-      let updatedParkingData;
-      try {
-        updatedParkingData = JSON.parse(content);
-      } catch {
-        errorMsg.textContent = 'JSON 형식이 올바르지 않습니다.';
-        errorMsg.style.display = 'block';
-        btn.disabled = false;
-        btn.textContent = 'GitHub에 저장';
-        return;
-      }
+        // 숫자 필드 변환
+        if (key === 'totalSpaces' || key === 'lat' || key === 'lng') {
+          const num = Number(val);
+          if (!isNaN(num) && val !== '') { val = num; }
+          else if (val === '') { val = key === 'totalSpaces' ? 0 : updated[key]; }
+        }
+
+        updated[key] = val;
+      });
 
       try {
         const { district, originalIndex } = currentEditingParking;
 
-        // 1. GitHub API로 최신 district JSON 가져오기
-        const getRes = await fetch(`/api/admin/parking/?district=${encodeURIComponent(district)}`);
+        // 1. 최신 district JSON 가져오기
+        const getRes = await fetch('/api/admin/parking/?district=' + encodeURIComponent(district));
         const getData = await getRes.json();
+        if (!getRes.ok) throw new Error(getData.error || '구 데이터 로딩 실패');
 
-        if (!getRes.ok) {
-          throw new Error(getData.error || '구 데이터 로딩 실패');
-        }
-
-        // 2. 파싱 & 해당 주차장 데이터 교체
+        // 2. 해당 주차장 데이터 교체
         const districtData = JSON.parse(getData.content);
-        districtData.items[originalIndex] = updatedParkingData;
+        districtData.items[originalIndex] = updated;
 
-        // 3. GitHub API로 저장
+        // 3. 저장
         const saveRes = await fetch('/api/admin/parking/', {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
@@ -765,30 +615,181 @@ export const prerender = false;
         const saveResult = await saveRes.json();
 
         if (saveRes.ok) {
-          successMsg.style.display = 'block';
+          okMsg.textContent = '저장 완료! Vercel 자동 배포가 시작됩니다.';
+          okMsg.style.display = 'block';
 
           // 로컬 데이터도 업데이트
-          const parkingLotIndex = allParkingLots.findIndex(
-            p => p.district === district && p.originalIndex === originalIndex
-          );
-          if (parkingLotIndex !== -1) {
-            allParkingLots[parkingLotIndex].parking = updatedParkingData;
+          const idx = allParkingLots.findIndex(p => p.district === district && p.originalIndex === originalIndex);
+          if (idx !== -1) {
+            allParkingLots[idx].parking = updated;
+            currentEditingParking.parking = updated;
           }
           applyFilters();
         } else {
-          errorMsg.textContent = saveResult.error || '저장 실패';
-          errorMsg.style.display = 'block';
+          errMsg.textContent = saveResult.error || '저장 실패';
+          errMsg.style.display = 'block';
         }
       } catch (e) {
-        errorMsg.textContent = '서버 오류: ' + e.message;
-        errorMsg.style.display = 'block';
+        errMsg.textContent = '서버 오류: ' + e.message;
+        errMsg.style.display = 'block';
       } finally {
-        btn.disabled = false;
-        btn.textContent = 'GitHub에 저장';
+        btn.disabled = false; btn.textContent = 'GitHub에 저장';
       }
     });
 
-    // 페이지 로드 시 데이터 로딩
+    // ─── 사진 관리 ───
+    let currentPhotos = [];
+
+    async function loadPhotos() {
+      const grid = document.getElementById('photoGrid');
+      grid.innerHTML = '<div style="text-align:center;padding:20px;color:#94a3b8;">불러오는 중...</div>';
+
+      const { district, parking } = currentEditingParking;
+      const slug = parking.slug;
+
+      if (!slug) {
+        grid.innerHTML = '<div style="text-align:center;padding:20px;color:#dc2626;">이 주차장에 slug가 없습니다. 데이터 편집 탭에서 slug를 먼저 설정하세요.</div>';
+        return;
+      }
+
+      try {
+        const res = await fetch('/api/admin/parking-images/?district=' + encodeURIComponent(district) + '&slug=' + encodeURIComponent(slug));
+        const data = await res.json();
+        currentPhotos = data.images || [];
+        document.getElementById('photoCount').textContent = currentPhotos.length;
+        renderPhotos();
+      } catch (e) {
+        grid.innerHTML = '<div style="text-align:center;padding:20px;color:#dc2626;">로딩 실패: ' + e.message + '</div>';
+      }
+    }
+
+    function renderPhotos() {
+      const grid = document.getElementById('photoGrid');
+      if (currentPhotos.length === 0) {
+        grid.innerHTML = '<div style="text-align:center;padding:24px;color:#94a3b8;font-size:13px;">등록된 사진이 없습니다.</div>';
+        return;
+      }
+      grid.innerHTML = currentPhotos.map((photo, i) =>
+        '<div class="photo-item" data-index="' + i + '">' +
+          '<img src="' + photo.url + '" alt="' + photo.name + '" loading="lazy" />' +
+          '<button class="photo-delete" onclick="deletePhoto(' + i + ')" title="삭제">×</button>' +
+          '<div class="photo-name">' + photo.name + '</div>' +
+        '</div>'
+      ).join('');
+    }
+
+    // 드래그 앤 드롭
+    const dropZone = document.getElementById('photoDrop');
+    const fileInput = document.getElementById('photoFileInput');
+
+    dropZone.addEventListener('click', () => fileInput.click());
+    dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('dragover'); });
+    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+    dropZone.addEventListener('drop', (e) => { e.preventDefault(); dropZone.classList.remove('dragover'); handleFiles(e.dataTransfer.files); });
+    fileInput.addEventListener('change', (e) => { handleFiles(e.target.files); fileInput.value = ''; });
+
+    async function handleFiles(files) {
+      if (!currentEditingParking) return;
+      const { district, parking, originalIndex } = currentEditingParking;
+      const slug = parking.slug;
+
+      if (!slug) { showPhotoError('slug가 없습니다. 데이터 편집 탭에서 설정하세요.'); return; }
+
+      const remaining = 10 - currentPhotos.length;
+      const filesToProcess = Array.from(files).slice(0, remaining);
+      if (filesToProcess.length === 0) { showPhotoError('최대 10장까지 업로드할 수 있습니다.'); return; }
+
+      showPhotoSuccess(filesToProcess.length + '장 업로드 중...');
+
+      for (const file of filesToProcess) {
+        try {
+          const base64 = await convertToWebP(file);
+          const nextNum = getNextFileName();
+          const fileName = nextNum + '.webp';
+
+          const res = await fetch('/api/admin/parking-images/', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ district, slug, fileName, base64Data: base64, originalIndex }),
+          });
+
+          const result = await res.json();
+          if (!res.ok) throw new Error(result.error);
+          showPhotoSuccess(fileName + ' 업로드 완료!');
+        } catch (e) { showPhotoError('업로드 실패: ' + e.message); }
+      }
+
+      await loadPhotos();
+      showPhotoSuccess('모든 사진 업로드 완료!');
+    }
+
+    function getNextFileName() {
+      const nums = currentPhotos.map(p => parseInt(p.name.replace('.webp', ''), 10)).filter(n => !isNaN(n));
+      let next = 1;
+      while (nums.includes(next)) next++;
+      return String(next).padStart(2, '0');
+    }
+
+    function convertToWebP(file) {
+      return new Promise((resolve, reject) => {
+        const img = new Image();
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          img.onload = () => {
+            const canvas = document.createElement('canvas');
+            const maxSize = 1200;
+            let w = img.width, h = img.height;
+            if (w > maxSize || h > maxSize) {
+              if (w > h) { h = Math.round(h * maxSize / w); w = maxSize; }
+              else { w = Math.round(w * maxSize / h); h = maxSize; }
+            }
+            canvas.width = w; canvas.height = h;
+            canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+            resolve(canvas.toDataURL('image/webp', 0.8).split(',')[1]);
+          };
+          img.onerror = () => reject(new Error('이미지 로드 실패'));
+          img.src = e.target.result;
+        };
+        reader.onerror = () => reject(new Error('파일 읽기 실패'));
+        reader.readAsDataURL(file);
+      });
+    }
+
+    window.deletePhoto = async function(index) {
+      const photo = currentPhotos[index];
+      if (!photo || !confirm('"' + photo.name + '" 사진을 삭제하시겠습니까?')) return;
+      const { district, parking, originalIndex } = currentEditingParking;
+      try {
+        const res = await fetch('/api/admin/parking-images/', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ district, slug: parking.slug, fileName: photo.name, sha: photo.sha, originalIndex }),
+        });
+        const result = await res.json();
+        if (!res.ok) throw new Error(result.error);
+        showPhotoSuccess(photo.name + ' 삭제 완료!');
+        await loadPhotos();
+      } catch (e) { showPhotoError('삭제 실패: ' + e.message); }
+    };
+
+    function showPhotoSuccess(msg) {
+      const el = document.getElementById('photoSuccess');
+      el.textContent = msg; el.style.display = 'block';
+      document.getElementById('photoError').style.display = 'none';
+    }
+    function showPhotoError(msg) {
+      const el = document.getElementById('photoError');
+      el.textContent = msg; el.style.display = 'block';
+      document.getElementById('photoSuccess').style.display = 'none';
+    }
+
+    // ─── 로그아웃 ───
+    document.getElementById('logoutBtn').addEventListener('click', async () => {
+      await fetch('/api/auth/logout/', { method: 'POST' });
+      window.location.href = '/admin/login/';
+    });
+
+    // 페이지 로드
     loadAllParkingData();
   </script>
 </body>

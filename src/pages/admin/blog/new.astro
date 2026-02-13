@@ -9,127 +9,121 @@ export const prerender = false;
   <meta name="robots" content="noindex, nofollow" />
   <title>새 블로그 글 작성 | ParkingMap Admin</title>
   <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f5f5; color: #111; }
-    .sidebar {
-      position: fixed; top: 0; left: 0; width: 240px; height: 100vh;
-      background: #1a1a2e; color: white; padding: 24px 0;
-    }
-    .sidebar .logo { padding: 0 24px; font-size: 20px; font-weight: 800; margin-bottom: 32px; }
-    .sidebar .logo span { color: #34d399; }
-    .sidebar nav a {
-      display: flex; align-items: center; gap: 10px;
-      padding: 12px 24px; color: #aaa; text-decoration: none;
-      font-size: 14px; transition: all 0.2s;
-    }
-    .sidebar nav a:hover, .sidebar nav a.active { color: white; background: rgba(255,255,255,0.08); }
-    .sidebar nav a.active { border-left: 3px solid #34d399; }
-    .main { margin-left: 240px; padding: 32px 40px; max-width: 900px; }
-    .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
-    .header h1 { font-size: 24px; font-weight: 800; }
-    .form-group { margin-bottom: 20px; }
-    .form-group label { display: block; font-size: 14px; font-weight: 600; color: #333; margin-bottom: 8px; }
-    .form-group input, .form-group textarea {
-      width: 100%; padding: 12px 16px; border: 1px solid #ddd;
-      border-radius: 8px; font-size: 14px; outline: none;
-      font-family: inherit; transition: border-color 0.2s;
-    }
-    .form-group input:focus, .form-group textarea:focus { border-color: #059669; }
-    .form-group textarea { min-height: 400px; font-family: 'SF Mono', 'Fira Code', monospace; font-size: 13px; line-height: 1.6; resize: vertical; }
-    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-    .btn { display: inline-block; padding: 12px 24px; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.2s; text-decoration: none; }
-    .btn-primary { background: #059669; color: white; }
-    .btn-primary:hover { background: #047857; }
-    .btn-gray { background: #e5e7eb; color: #374151; }
-    .btn-gray:hover { background: #d1d5db; }
-    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
-    .actions { display: flex; gap: 12px; margin-top: 24px; }
-    .msg { padding: 12px 16px; border-radius: 8px; font-size: 14px; margin-top: 16px; display: none; }
-    .msg-success { background: #d1fae5; color: #065f46; }
-    .msg-error { background: #fee2e2; color: #dc2626; }
-    .slug-preview { font-size: 12px; color: #888; margin-top: 4px; }
+    *{margin:0;padding:0;box-sizing:border-box}
+    body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#f1f5f9;color:#1e293b;-webkit-font-smoothing:antialiased}
+
+    .sidebar{position:fixed;top:0;left:0;width:220px;height:100vh;background:#0f172a;display:flex;flex-direction:column;z-index:50}
+    .sidebar-header{padding:20px;border-bottom:1px solid rgba(255,255,255,.06)}
+    .sidebar-logo{font-size:15px;font-weight:800;color:#e2e8f0;display:flex;align-items:center;gap:10px;text-decoration:none}
+    .logo-icon{width:30px;height:30px;background:linear-gradient(135deg,#10b981,#059669);border-radius:8px;display:flex;align-items:center;justify-content:center;color:white;font-weight:900;font-size:15px}
+    .sidebar nav{flex:1;padding:16px 0}
+    .sidebar nav a{display:flex;align-items:center;gap:10px;padding:10px 16px;margin:2px 8px;color:#94a3b8;text-decoration:none;font-size:13px;font-weight:500;border-radius:8px;transition:all .15s}
+    .sidebar nav a:hover{color:#e2e8f0;background:rgba(255,255,255,.05)}
+    .sidebar nav a.active{color:white;background:rgba(16,185,129,.15)}
+    .nav-icon{font-size:16px;width:20px;text-align:center}
+    .sidebar-footer{padding:16px 20px;border-top:1px solid rgba(255,255,255,.06)}
+    .logout-btn{width:100%;padding:8px 12px;background:transparent;border:1px solid rgba(255,255,255,.1);color:#64748b;border-radius:6px;font-size:12px;cursor:pointer;transition:all .15s}
+    .logout-btn:hover{background:rgba(255,255,255,.05);color:#94a3b8}
+
+    .main{margin-left:220px;padding:28px 32px;max-width:960px}
+    .page-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:24px}
+    .page-header h1{font-size:22px;font-weight:800;color:#0f172a}
+    .btn{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;transition:all .15s;text-decoration:none}
+    .btn:disabled{opacity:.5;cursor:not-allowed}
+    .btn-primary{background:#10b981;color:white}
+    .btn-primary:hover{background:#059669}
+    .btn-back{background:#e2e8f0;color:#475569}
+    .btn-back:hover{background:#cbd5e1}
+
+    .edit-card{background:white;border-radius:12px;padding:24px;border:1px solid #e2e8f0}
+    .form-group{margin-bottom:16px}
+    .form-group label{display:block;font-size:12px;font-weight:600;color:#64748b;margin-bottom:6px;text-transform:uppercase;letter-spacing:.04em}
+    .form-group input,.form-group textarea,.form-group select{width:100%;padding:9px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;color:#1e293b;outline:none;font-family:inherit;transition:all .15s;background:white}
+    .form-group input:focus,.form-group textarea:focus,.form-group select:focus{border-color:#10b981;box-shadow:0 0 0 3px rgba(16,185,129,.1)}
+    .form-group textarea{min-height:400px;font-family:'SF Mono','Fira Code',monospace;font-size:13px;line-height:1.6;resize:vertical}
+    .form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+    .actions{display:flex;gap:10px;margin-top:20px}
+    .msg{padding:10px 14px;border-radius:8px;font-size:13px;margin-top:12px;display:none}
+    .msg-success{background:#ecfdf5;color:#065f46;border:1px solid #a7f3d0}
+    .msg-error{background:#fef2f2;color:#991b1b;border:1px solid #fecaca}
+    .slug-preview{font-size:11px;color:#94a3b8;margin-top:4px;font-family:'SF Mono','Fira Code',monospace}
   </style>
 </head>
 <body>
   <aside class="sidebar">
-    <div class="logo"><span>P</span> Admin</div>
+    <div class="sidebar-header">
+      <a href="/admin/parking/" class="sidebar-logo">
+        <div class="logo-icon">P</div>
+        ParkingMap
+      </a>
+    </div>
     <nav>
-      <a href="/admin/">대시보드</a>
-      <a href="/admin/blog/" class="active">블로그 관리</a>
-      <a href="/admin/parking/">주차장 관리</a>
-      <a href="/" target="_blank">사이트 보기</a>
+      <a href="/admin/parking/"><span class="nav-icon">🅿️</span> 주차장 관리</a>
+      <a href="/admin/blog/" class="active"><span class="nav-icon">📝</span> 블로그 관리</a>
     </nav>
+    <div class="sidebar-footer">
+      <button class="logout-btn" id="logoutBtn">로그아웃</button>
+    </div>
   </aside>
 
   <div class="main">
-    <div class="header">
+    <div class="page-header">
       <h1>새 블로그 글 작성</h1>
-      <a href="/admin/blog/" class="btn btn-gray">목록으로</a>
+      <a href="/admin/blog/" class="btn btn-back">← 목록으로</a>
     </div>
 
-    <form id="blogForm">
-      <div class="form-group">
-        <label for="title">제목</label>
-        <input type="text" id="title" placeholder="블로그 글 제목을 입력하세요" required />
-      </div>
-
-      <div class="form-row">
+    <div class="edit-card">
+      <form id="blogForm">
         <div class="form-group">
-          <label for="slug">슬러그 (URL)</label>
-          <input type="text" id="slug" placeholder="my-blog-post" required />
-          <div class="slug-preview">미리보기: /blog/<span id="slugPreview">-</span>/</div>
+          <label>제목</label>
+          <input type="text" id="title" placeholder="블로그 글 제목을 입력하세요" required />
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>슬러그 (URL)</label>
+            <input type="text" id="slug" placeholder="my-blog-post" required />
+            <div class="slug-preview">미리보기: /blog/<span id="slugPreview">-</span>/</div>
+          </div>
+          <div class="form-group">
+            <label>날짜</label>
+            <input type="date" id="date" required />
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>카테고리</label>
+            <select id="category" style="cursor:pointer;">
+              <option value="블로그">블로그</option>
+              <option value="주차장">주차장</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>짧은 이름 (선택)</label>
+            <input type="text" id="breadcrumbName" placeholder="빵가루 표시용 짧은 이름" />
+          </div>
         </div>
         <div class="form-group">
-          <label for="date">날짜</label>
-          <input type="date" id="date" required />
-        </div>
-      </div>
-
-      <div class="form-row">
-        <div class="form-group">
-          <label for="category">카테고리</label>
-          <select id="category" style="width:100%; padding:12px 16px; border:1px solid #ddd; border-radius:8px; font-size:14px; outline:none; font-family:inherit; cursor:pointer;">
-            <option value="블로그">블로그</option>
-            <option value="주차장">주차장</option>
-          </select>
+          <label>설명 (SEO)</label>
+          <input type="text" id="description" placeholder="검색 결과에 표시될 설명을 입력하세요" required />
         </div>
         <div class="form-group">
-          <label for="breadcrumbName">짧은 이름 (선택)</label>
-          <input type="text" id="breadcrumbName" placeholder="빵가루 표시용 짧은 이름" />
+          <label>본문 (Markdown)</label>
+          <textarea id="content" placeholder="마크다운으로 본문을 작성하세요..." required></textarea>
         </div>
-      </div>
-
-      <div class="form-group">
-        <label for="description">설명 (SEO)</label>
-        <input type="text" id="description" placeholder="검색 결과에 표시될 설명을 입력하세요" required />
-      </div>
-
-      <div class="form-group">
-        <label for="content">본문 (Markdown)</label>
-        <textarea id="content" placeholder="마크다운으로 본문을 작성하세요...&#10;&#10;## 소제목&#10;&#10;본문 내용을 여기에 작성합니다." required></textarea>
-      </div>
-
-      <div class="actions">
-        <button type="submit" class="btn btn-primary" id="saveBtn">GitHub에 저장</button>
-        <button type="button" class="btn btn-gray" id="previewBtn">미리보기</button>
-      </div>
-
-      <div class="msg msg-success" id="successMsg"></div>
-      <div class="msg msg-error" id="errorMsg"></div>
-    </form>
+        <div class="actions">
+          <button type="submit" class="btn btn-primary" id="saveBtn">GitHub에 저장</button>
+        </div>
+        <div class="msg msg-success" id="successMsg"></div>
+        <div class="msg msg-error" id="errorMsg"></div>
+      </form>
+    </div>
   </div>
 
   <script is:inline>
-    // 오늘 날짜 기본값
     document.getElementById('date').value = new Date().toISOString().split('T')[0];
 
-    // 제목 → 슬러그 자동 생성
     document.getElementById('title').addEventListener('input', (e) => {
-      const slug = e.target.value
-        .toLowerCase()
-        .replace(/[가-힣]/g, '') // 한글 제거
-        .replace(/[^a-z0-9]+/g, '-')
-        .replace(/^-+|-+$/g, '');
+      const slug = e.target.value.toLowerCase().replace(/[가-힣]/g,'').replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'');
       if (!document.getElementById('slug').dataset.manual) {
         document.getElementById('slug').value = slug;
         document.getElementById('slugPreview').textContent = slug || '-';
@@ -141,18 +135,13 @@ export const prerender = false;
       document.getElementById('slugPreview').textContent = e.target.value || '-';
     });
 
-    // 저장
     document.getElementById('blogForm').addEventListener('submit', async (e) => {
       e.preventDefault();
       const btn = document.getElementById('saveBtn');
       const successMsg = document.getElementById('successMsg');
       const errorMsg = document.getElementById('errorMsg');
-
-      btn.disabled = true;
-      btn.textContent = '저장 중...';
-      successMsg.style.display = 'none';
-      errorMsg.style.display = 'none';
-
+      btn.disabled = true; btn.textContent = '저장 중...';
+      successMsg.style.display = 'none'; errorMsg.style.display = 'none';
       const data = {
         title: document.getElementById('title').value,
         slug: document.getElementById('slug').value,
@@ -162,30 +151,22 @@ export const prerender = false;
         category: document.getElementById('category').value,
         breadcrumbName: document.getElementById('breadcrumbName').value || undefined,
       };
-
       try {
         const res = await fetch('/api/admin/blog/', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(data),
         });
-
         const result = await res.json();
+        if (res.ok) { successMsg.textContent = '저장 완료! Vercel 자동 배포가 시작됩니다.'; successMsg.style.display = 'block'; }
+        else { errorMsg.textContent = result.error || '저장에 실패했습니다.'; errorMsg.style.display = 'block'; }
+      } catch (err) { errorMsg.textContent = '서버 연결 실패: ' + err.message; errorMsg.style.display = 'block'; }
+      finally { btn.disabled = false; btn.textContent = 'GitHub에 저장'; }
+    });
 
-        if (res.ok) {
-          successMsg.textContent = '저장 완료! GitHub에 커밋되었습니다. 잠시 후 Vercel이 자동 배포합니다.';
-          successMsg.style.display = 'block';
-        } else {
-          errorMsg.textContent = result.error || '저장에 실패했습니다.';
-          errorMsg.style.display = 'block';
-        }
-      } catch (err) {
-        errorMsg.textContent = '서버 연결에 실패했습니다: ' + err.message;
-        errorMsg.style.display = 'block';
-      } finally {
-        btn.disabled = false;
-        btn.textContent = 'GitHub에 저장';
-      }
+    document.getElementById('logoutBtn').addEventListener('click', async () => {
+      await fetch('/api/auth/logout/', { method: 'POST' });
+      window.location.href = '/admin/login/';
     });
   </script>
 </body>
