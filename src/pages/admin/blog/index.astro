@@ -183,23 +183,34 @@ export const prerender = false;
 
       tbody.innerHTML = filtered.map(post => {
         const isLegacy = post.source === 'legacy';
+        const isParkingEditorial = post.source === 'parking-editorial';
         const badgeClass = isLegacy ? 'badge-astro' : 'badge-md';
         const badgeText = isLegacy ? 'Astro' : 'Markdown';
         const editUrl = isLegacy
           ? '/admin/blog/edit/?slug=' + post.slug + '&type=legacy'
-          : '/admin/blog/edit/?slug=' + post.slug;
+          : isParkingEditorial
+            ? '/admin/blog/edit/?slug=' + post.slug + '&type=parking-editorial'
+            : '/admin/blog/edit/?slug=' + post.slug;
         const cat = post.category || '블로그';
         const catClass = cat === '주차장' ? 'badge-parking' : 'badge-blog';
 
+        // 주차장 에디토리얼은 주차장 상세 페이지로 링크
+        let viewUrl = '/blog/' + post.slug + '/';
+        let displayPath = '/blog/' + post.slug + '/';
+        if (isParkingEditorial && post.sido && post.sigungu && post.dong && post.parkingSlug) {
+          viewUrl = '/' + encodeURIComponent(post.sido) + '/' + encodeURIComponent(post.sigungu) + '/' + encodeURIComponent(post.dong) + '/' + encodeURIComponent(post.parkingSlug) + '/';
+          displayPath = '/' + post.sido + '/' + post.sigungu + '/' + post.dong + '/' + post.parkingSlug + '/';
+        }
+
         return '<tr>' +
           '<td><div class="post-title">' + post.title + '</div>' +
-            '<div class="post-desc">/blog/' + post.slug + '/</div></td>' +
+            '<div class="post-desc">' + displayPath + '</div></td>' +
           '<td><span class="badge ' + catClass + '">' + cat + '</span></td>' +
           '<td><span class="badge ' + badgeClass + '">' + badgeText + '</span></td>' +
           '<td class="post-date">' + post.date + '</td>' +
           '<td><div class="actions">' +
             '<a href="' + editUrl + '" class="btn btn-edit">편집</a>' +
-            '<a href="/blog/' + post.slug + '/" target="_blank" class="btn btn-view">보기</a>' +
+            '<a href="' + viewUrl + '" target="_blank" class="btn btn-view">보기</a>' +
           '</div></td>' +
         '</tr>';
       }).join('');

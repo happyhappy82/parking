@@ -4,6 +4,7 @@ import type { APIRoute } from 'astro';
 import { getFile, saveFile, deleteFile, listFiles } from '../../../utils/github';
 
 const BLOG_PATH = 'src/content/blog';
+const PARKING_EDITORIAL_PATH = 'src/content/parking-editorial';
 const LEGACY_PATH = 'src/pages/blog';
 
 // 기존 하드코딩 블로그 목록
@@ -43,6 +44,10 @@ function buildMarkdown(data: {
   category?: string;
   notionPageId?: string;
   breadcrumbName?: string;
+  sido?: string;
+  sigungu?: string;
+  dong?: string;
+  parkingSlug?: string;
 }) {
   const lines = [
     '---',
@@ -60,9 +65,18 @@ function buildMarkdown(data: {
     lines.push(`breadcrumbName: "${data.breadcrumbName}"`);
   }
 
+  if (data.sido) lines.push(`sido: "${data.sido}"`);
+  if (data.sigungu) lines.push(`sigungu: "${data.sigungu}"`);
+  if (data.dong) lines.push(`dong: "${data.dong}"`);
+  if (data.parkingSlug) lines.push(`parkingSlug: "${data.parkingSlug}"`);
+
   lines.push('---', '', data.content);
 
   return lines.join('\n');
+}
+
+function getContentPath(category: string): string {
+  return category === '주차장' ? PARKING_EDITORIAL_PATH : BLOG_PATH;
 }
 
 // GET: 목록 or 개별 조회
@@ -78,8 +92,9 @@ export const GET: APIRoute = async ({ url }) => {
         return json({ slug, content });
       }
 
-      // 마크다운 개별 조회
-      const { content } = await getFile(`${BLOG_PATH}/${slug}.md`);
+      // 마크다운 개별 조회 (블로그 또는 주차장 에디토리얼)
+      const contentPath = type === 'parking-editorial' ? PARKING_EDITORIAL_PATH : BLOG_PATH;
+      const { content } = await getFile(`${contentPath}/${slug}.md`);
       const { meta, body } = parseFrontmatter(content);
       return json({
         slug,
@@ -89,6 +104,10 @@ export const GET: APIRoute = async ({ url }) => {
         category: meta.category || '블로그',
         notionPageId: meta.notionPageId || '',
         breadcrumbName: meta.breadcrumbName || '',
+        sido: meta.sido || '',
+        sigungu: meta.sigungu || '',
+        dong: meta.dong || '',
+        parkingSlug: meta.parkingSlug || '',
         content: body.trim(),
       });
     }
@@ -96,6 +115,7 @@ export const GET: APIRoute = async ({ url }) => {
     // 목록 조회
     const mdPosts: any[] = [];
 
+    // 블로그 글 목록
     try {
       const files = await listFiles(BLOG_PATH);
       for (const file of files) {
@@ -120,6 +140,35 @@ export const GET: APIRoute = async ({ url }) => {
       // GitHub API 실패해도 레거시 글은 보여줌
     }
 
+    // 주차장 에디토리얼 글 목록
+    try {
+      const peFiles = await listFiles(PARKING_EDITORIAL_PATH);
+      for (const file of peFiles) {
+        if (!file.name.endsWith('.md')) continue;
+        const fileSlug = file.name.replace('.md', '');
+        try {
+          const { content } = await getFile(file.path);
+          const { meta } = parseFrontmatter(content);
+          mdPosts.push({
+            slug: fileSlug,
+            title: meta.title || fileSlug,
+            description: meta.description || '',
+            date: meta.date || '',
+            category: '주차장',
+            source: 'parking-editorial',
+            sido: meta.sido || '',
+            sigungu: meta.sigungu || '',
+            dong: meta.dong || '',
+            parkingSlug: meta.parkingSlug || '',
+          });
+        } catch {
+          mdPosts.push({ slug: fileSlug, title: fileSlug, description: '', date: '', category: '주차장', source: 'parking-editorial' });
+        }
+      }
+    } catch {
+      // parking-editorial 디렉토리 없어도 무시
+    }
+
     const allPosts = [...LEGACY_POSTS, ...mdPosts].sort(
       (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
     );
@@ -135,17 +184,19 @@ export const GET: APIRoute = async ({ url }) => {
 export const POST: APIRoute = async ({ request }) => {
   try {
     const data = await request.json();
-    const { slug, title, description, date, content, category, breadcrumbName } = data;
+    const { slug, title, description, date, content, category, breadcrumbName, sido, sigungu, dong, parkingSlug } = data;
 
     if (!slug || !title || !content) {
       return json({ error: '필수 항목이 누락되었습니다.' }, 400);
     }
 
-    const markdown = buildMarkdown({ title, description, date, content, category, breadcrumbName });
+    const contentDir = getContentPath(category);
+    const markdown = buildMarkdown({ title, description, date, content, category, breadcrumbName, sido, sigungu, dong, parkingSlug });
+    const label = category === '주차장' ? 'parking-editorial' : 'blog';
     await saveFile(
-      `${BLOG_PATH}/${slug}.md`,
+      `${contentDir}/${slug}.md`,
       markdown,
-      `blog: ${title} 글 추가`
+      `${label}: ${title} 글 추가`
     );
 
     return json({ success: true });
@@ -158,7 +209,7 @@ export const POST: APIRoute = async ({ request }) => {
 export const PUT: APIRoute = async ({ request }) => {
   try {
     const data = await request.json();
-    const { slug, type, title, description, date, content, category, notionPageId, breadcrumbName } = data;
+    const { slug, type, title, description, date, content, category, notionPageId, breadcrumbName, sido, sigungu, dong, parkingSlug } = data;
 
     if (!slug) return json({ error: '슬러그가 필요합니다.' }, 400);
 
@@ -170,12 +221,14 @@ export const PUT: APIRoute = async ({ request }) => {
       return json({ success: true });
     }
 
-    // 마크다운 수정
-    const filePath = `${BLOG_PATH}/${slug}.md`;
+    // 마크다운 수정 (블로그 또는 주차장 에디토리얼)
+    const contentDir = type === 'parking-editorial' ? PARKING_EDITORIAL_PATH : BLOG_PATH;
+    const filePath = `${contentDir}/${slug}.md`;
     const existing = await getFile(filePath);
-    const markdown = buildMarkdown({ title, description, date, content, category, notionPageId, breadcrumbName });
+    const label = type === 'parking-editorial' ? 'parking-editorial' : 'blog';
+    const markdown = buildMarkdown({ title, description, date, content, category, notionPageId, breadcrumbName, sido, sigungu, dong, parkingSlug });
 
-    await saveFile(filePath, markdown, `blog: ${title} 글 수정`, existing.sha);
+    await saveFile(filePath, markdown, `${label}: ${title} 글 수정`, existing.sha);
 
     return json({ success: true });
   } catch (e: any) {
@@ -187,13 +240,15 @@ export const PUT: APIRoute = async ({ request }) => {
 export const DELETE: APIRoute = async ({ request }) => {
   try {
     const data = await request.json();
-    const { slug } = data;
+    const { slug, type } = data;
 
     if (!slug) return json({ error: '슬러그가 필요합니다.' }, 400);
 
-    const filePath = `${BLOG_PATH}/${slug}.md`;
+    const contentDir = type === 'parking-editorial' ? PARKING_EDITORIAL_PATH : BLOG_PATH;
+    const filePath = `${contentDir}/${slug}.md`;
     const existing = await getFile(filePath);
-    await deleteFile(filePath, existing.sha, `blog: ${slug} 글 삭제`);
+    const label = type === 'parking-editorial' ? 'parking-editorial' : 'blog';
+    await deleteFile(filePath, existing.sha, `${label}: ${slug} 글 삭제`);
 
     return json({ success: true });
   } catch (e: any) {

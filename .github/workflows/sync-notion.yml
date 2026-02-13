@@ -46,7 +46,7 @@ jobs:
       - name: Check for changes
         id: check_changes
         run: |
-          CHANGES=$(git status --porcelain src/content/blog/ src/pages/ public/notion-images/ .notion-page-map.json 2>/dev/null || true)
+          CHANGES=$(git status --porcelain src/content/blog/ src/content/parking-editorial/ src/pages/ public/notion-images/ .notion-page-map.json 2>/dev/null || true)
           if [ -z "$CHANGES" ]; then
             echo "has_changes=false" >> $GITHUB_OUTPUT
             echo "No changes detected in target directories"
@@ -66,10 +66,11 @@ jobs:
         if: steps.check_changes.outputs.has_changes == 'true'
         run: |
           git add -A src/content/blog/
+          [ -d "src/content/parking-editorial/" ] && git add -A src/content/parking-editorial/ || true
           git add -A src/pages/
           [ -d "public/notion-images/" ] && git add -A public/notion-images/ || true
           git add -f .notion-page-map.json
-          git commit -m "Sync blog from Notion"
+          git commit -m "Sync content from Notion"
           git pull --rebase origin main
           git push origin main
 

@@ -1,6 +1,7 @@
 ---
 import BaseLayout from '../../../../layouts/BaseLayout.astro';
 import Header from '../../../../components/Header.astro';
+import { getCollection } from 'astro:content';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -482,6 +483,16 @@ function generateReview(lot: any, dongName: string, sigunguName: string) {
 
 const review = generateReview(item, dong!, sigungu!);
 
+// ─── Notion 에디토리얼 콘텐츠 ───
+const editorialSlug = `${sido}-${sigungu}-${dong}-${slug}`;
+const editorialEntries = await getCollection('parking-editorial');
+const editorialEntry = editorialEntries.find((e: any) => e.slug === editorialSlug);
+let EditorialContent: any = null;
+if (editorialEntry) {
+  const rendered = await editorialEntry.render();
+  EditorialContent = rendered.Content;
+}
+
 // ─── 외부 지도 링크 ───
 const naverUrl = `https://map.naver.com/p/search/${encodeURIComponent(item.address)}`;
 const kakaoUrl = `https://map.kakao.com/link/map/${encodeURIComponent(displayName)},${item.lat},${item.lng}`;
@@ -632,13 +643,23 @@ const images: string[] = item.images || [];
         <h2 class="text-lg font-bold text-gray-900 mt-0.5">{displayName} 이용 가이드</h2>
       </div>
     </div>
-    <div class="text-gray-700 text-[15px] leading-relaxed space-y-3 pl-12">
-      <p>{review.intro}</p>
-      <p>{review.detail}</p>
-      <p class="text-gray-500 text-sm border-l-2 border-emerald-200 pl-3 italic">{review.tip}</p>
-    </div>
+    {EditorialContent ? (
+      <div class="prose prose-emerald max-w-none text-gray-700 text-[15px] leading-relaxed pl-12">
+        <EditorialContent />
+      </div>
+    ) : (
+      <div class="text-gray-700 text-[15px] leading-relaxed space-y-3 pl-12">
+        <p>{review.intro}</p>
+        <p>{review.detail}</p>
+        <p class="text-gray-500 text-sm border-l-2 border-emerald-200 pl-3 italic">{review.tip}</p>
+      </div>
+    )}
     <div class="mt-4 pt-3 border-t border-emerald-100 pl-12">
-      <p class="text-xs text-gray-400">공공데이터포털(data.go.kr) 기반 파킹맵 에디터 작성. 현장 상황과 다를 수 있으니 방문 전 확인을 권장합니다.</p>
+      <p class="text-xs text-gray-400">
+        {EditorialContent
+          ? '파킹맵 에디터가 직접 작성한 리뷰입니다. 현장 상황과 다를 수 있으니 방문 전 확인을 권장합니다.'
+          : '공공데이터포털(data.go.kr) 기반 파킹맵 에디터 작성. 현장 상황과 다를 수 있으니 방문 전 확인을 권장합니다.'}
+      </p>
     </div>
   </section>
 

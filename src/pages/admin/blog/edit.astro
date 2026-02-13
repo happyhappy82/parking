@@ -154,6 +154,7 @@ export const prerender = false;
     const slug = params.get('slug');
     const type = params.get('type');
     const isLegacy = type === 'legacy';
+    const isParkingEditorial = type === 'parking-editorial';
 
     if (!slug) {
       document.getElementById('loadingState').textContent = '슬러그가 지정되지 않았습니다.';
@@ -223,11 +224,16 @@ export const prerender = false;
     // --- 마크다운 편집 ---
     async function loadMarkdown(slug) {
       const titleEl = document.getElementById('pageTitle');
-      titleEl.innerHTML = '블로그 글 편집 <span class="type-badge type-md">Markdown</span>';
-      document.getElementById('filePath').textContent = 'src/content/blog/' + slug + '.md';
+      const label = isParkingEditorial ? '주차장 에디토리얼 편집' : '블로그 글 편집';
+      const dir = isParkingEditorial ? 'src/content/parking-editorial/' : 'src/content/blog/';
+      titleEl.innerHTML = label + ' <span class="type-badge type-md">Markdown</span>';
+      document.getElementById('filePath').textContent = dir + slug + '.md';
 
       try {
-        const res = await fetch('/api/admin/blog/?slug=' + slug);
+        const apiUrl = isParkingEditorial
+          ? '/api/admin/blog/?slug=' + slug + '&type=parking-editorial'
+          : '/api/admin/blog/?slug=' + slug;
+        const res = await fetch(apiUrl);
         const data = await res.json();
         if (!res.ok) throw new Error(data.error);
 
@@ -262,6 +268,7 @@ export const prerender = false;
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             slug: document.getElementById('slug').value,
+            type: isParkingEditorial ? 'parking-editorial' : undefined,
             title: document.getElementById('title').value,
             date: document.getElementById('date').value,
             description: document.getElementById('description').value,
@@ -293,7 +300,7 @@ export const prerender = false;
         const res = await fetch('/api/admin/blog/', {
           method: 'DELETE',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ slug: document.getElementById('slug').value }),
+          body: JSON.stringify({ slug: document.getElementById('slug').value, type: isParkingEditorial ? 'parking-editorial' : undefined }),
         });
         if (res.ok) {
           alert('삭제 완료!');

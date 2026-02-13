@@ -1,8 +1,9 @@
 /**
  * Notion → Blog/Parking 동기화 스크립트
  *
- * Notion DB에서 컨텐츠를 가져와 src/content/blog/*.md 로 동기화한다.
- * 카테고리: 블로그 / 주차장
+ * Notion DB에서 컨텐츠를 가져와 카테고리별로 분리 저장한다.
+ *   - 블로그 카테고리 → src/content/blog/*.md
+ *   - 주차장 카테고리 → src/content/parking-editorial/*.md
  *
  * 환경변수:
  *   NOTION_API_KEY       - Notion Integration 토큰
@@ -25,9 +26,15 @@ const n2m = new NotionToMarkdown({ notionClient: notion });
 const DATABASE_ID = process.env.NOTION_DATABASE_ID;
 
 const BLOG_DIR = path.join(__dirname, '..', 'src', 'content', 'blog');
+const PARKING_EDITORIAL_DIR = path.join(__dirname, '..', 'src', 'content', 'parking-editorial');
 const IMAGE_DIR = path.join(__dirname, '..', 'public', 'notion-images');
 const PAGE_MAP_FILE = path.join(__dirname, '..', '.notion-page-map.json');
 const SLUG_FILE = path.join(__dirname, '..', '.published-slug');
+
+/** 카테고리에 따른 저장 디렉토리 반환 */
+function getContentDir(category) {
+  return category === '주차장' ? PARKING_EDITORIAL_DIR : BLOG_DIR;
+}
 
 // ── 유틸 ──
 function ensureDir(dir) {
@@ -59,11 +66,21 @@ function getPropertyValue(page, name) {
   }
 }
 
-// page_id ↔ slug 매핑 로드/저장
+// page_id ↔ { slug, category } 매핑 로드/저장
 function loadPageMap() {
   if (fs.existsSync(PAGE_MAP_FILE)) {
     try {
-      return JSON.parse(fs.readFileSync(PAGE_MAP_FILE, 'utf-8'));
+      const raw = JSON.parse(fs.readFileSync(PAGE_MAP_FILE, 'utf-8'));
+      // 마이그레이션: 이전 형식(string)을 새 형식({slug, category})으로 변환
+      const migrated = {};
+      for (const [key, value] of Object.entries(raw)) {
+        if (typeof value === 'string') {
+          migrated[key] = { slug: value, category: '블로그' };
+        } else {
+          migrated[key] = value;
+        }
+      }
+      return migrated;
     } catch {
       return {};
     }
@@ -138,7 +155,7 @@ async function getPageById(pageId) {
   return notion.pages.retrieve({ page_id: pageId });
 }
 
-/** Notion 페이지 → Markdown 변환 (심플 파싱) */
+/** Notion 페이지 → Markdown 변환 */
 async function pageToMarkdown(page, pageMap) {
   const pageId = page.id;
   const title = getPropertyValue(page, 'Title');
@@ -148,14 +165,17 @@ async function pageToMarkdown(page, pageMap) {
   const breadcrumbName = getPropertyValue(page, 'BreadcrumbName');
 
   // 기존 매핑에 slug가 있으면 그대로 사용 (중복 방지)
-  let slug = pageMap[pageId] || getPropertyValue(page, 'Slug');
+  const existingMapping = pageMap[pageId];
+  let slug = (existingMapping ? existingMapping.slug : null) || getPropertyValue(page, 'Slug');
 
   if (!slug) {
     console.warn(`  [SKIP] "${title}" — Slug 없음`);
     return null;
   }
 
-  // 중첩 경로 → flat slug (라우팅 호환)
+  // 중첩 경로 → flat slug (파일시스템 호환)
+  // 예: 서울특별시/강동구/천호동/천호역 → 서울특별시-강동구-천호동-천호역
+  const originalSlug = slug;
   slug = slug.replace(/\//g, '-');
 
   if (!date) {
@@ -214,42 +234,80 @@ async function pageToMarkdown(page, pageMap) {
     frontmatter.push(`breadcrumbName: "${breadcrumbName.replace(/"/g, '\\"')}"`);
   }
 
+  // 주차장 카테고리: 라우팅 정보 추가 (sido/sigungu/dong/parkingSlug)
+  if (category === '주차장') {
+    const parts = originalSlug.split('/');
+    if (parts.length >= 4) {
+      frontmatter.push(`sido: "${parts[0]}"`);
+      frontmatter.push(`sigungu: "${parts[1]}"`);
+      frontmatter.push(`dong: "${parts[2]}"`);
+      frontmatter.push(`parkingSlug: "${parts.slice(3).join('-')}"`);
+    }
+  }
+
   frontmatter.push('---');
 
   return {
     slug,
     pageId,
+    category,
     content: frontmatter.join('\n') + '\n\n' + mdContent.trim() + '\n',
   };
 }
 
+/** 디렉토리에서 .md 파일 목록 수집 */
+function collectMdFiles(dir) {
+  const files = new Set();
+  if (!fs.existsSync(dir)) return files;
+
+  function scan(currentDir, prefix = '') {
+    for (const entry of fs.readdirSync(currentDir, { withFileTypes: true })) {
+      if (entry.isDirectory()) {
+        scan(path.join(currentDir, entry.name), prefix ? `${prefix}/${entry.name}` : entry.name);
+      } else if (entry.name.endsWith('.md')) {
+        const slug = prefix ? `${prefix}/${entry.name.replace('.md', '')}` : entry.name.replace('.md', '');
+        files.add(slug);
+      }
+    }
+  }
+  scan(dir);
+  return files;
+}
+
+/** 파일 삭제 + 이미지 폴더 삭제 */
+function deleteContent(contentDir, slug) {
+  const filePath = path.join(contentDir, `${slug}.md`);
+  if (fs.existsSync(filePath)) {
+    fs.unlinkSync(filePath);
+    console.log(`  [DELETE] ${slug}.md`);
+  }
+
+  const imgDir = path.join(IMAGE_DIR, slug);
+  if (fs.existsSync(imgDir)) {
+    fs.rmSync(imgDir, { recursive: true });
+    console.log(`  [DELETE] images for ${slug}`);
+  }
+}
+
 /** 전체 동기화 (예약 발행 / 수동 실행) */
 async function syncAll() {
-  console.log('=== Full Sync: Notion → Blog ===\n');
+  console.log('=== Full Sync: Notion → Blog/Parking ===\n');
 
   const pages = await getPublishedPages();
   console.log(`Published pages: ${pages.length}\n`);
 
   ensureDir(BLOG_DIR);
+  ensureDir(PARKING_EDITORIAL_DIR);
 
-  // 기존 파일 목록 (삭제 감지용, 하위 디렉토리 포함)
-  const existingFiles = new Set();
-  function collectMdFiles(dir, prefix = '') {
-    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-      if (entry.isDirectory()) {
-        collectMdFiles(path.join(dir, entry.name), prefix ? `${prefix}/${entry.name}` : entry.name);
-      } else if (entry.name.endsWith('.md')) {
-        const slug = prefix ? `${prefix}/${entry.name.replace('.md', '')}` : entry.name.replace('.md', '');
-        existingFiles.add(slug);
-      }
-    }
-  }
-  collectMdFiles(BLOG_DIR);
+  // 기존 파일 목록 (삭제 감지용)
+  const existingBlogFiles = collectMdFiles(BLOG_DIR);
+  const existingParkingFiles = collectMdFiles(PARKING_EDITORIAL_DIR);
 
   // page_id 매핑 로드
   const pageMap = loadPageMap();
 
-  const syncedSlugs = new Set();
+  const syncedBlogSlugs = new Set();
+  const syncedParkingSlugs = new Set();
   const newSlugs = [];
 
   for (const page of pages) {
@@ -259,8 +317,20 @@ async function syncAll() {
     const result = await pageToMarkdown(page, pageMap);
     if (!result) continue;
 
-    const filePath = path.join(BLOG_DIR, `${result.slug}.md`);
+    const contentDir = getContentDir(result.category);
+    const existingFiles = result.category === '주차장' ? existingParkingFiles : existingBlogFiles;
+    const syncedSlugs = result.category === '주차장' ? syncedParkingSlugs : syncedBlogSlugs;
+
+    const filePath = path.join(contentDir, `${result.slug}.md`);
     const isNew = !existingFiles.has(result.slug);
+
+    // 카테고리 변경 감지: 이전 매핑과 현재 카테고리가 다르면 이전 파일 삭제
+    const oldMapping = pageMap[result.pageId];
+    if (oldMapping && oldMapping.category !== result.category) {
+      const oldDir = getContentDir(oldMapping.category);
+      deleteContent(oldDir, oldMapping.slug);
+      console.log(`  [MOVED] ${oldMapping.category} → ${result.category}`);
+    }
 
     // 기존 파일과 비교해서 변경된 경우만 쓰기
     let shouldWrite = true;
@@ -278,7 +348,7 @@ async function syncAll() {
         fs.mkdirSync(dir, { recursive: true });
       }
       fs.writeFileSync(filePath, result.content, 'utf-8');
-      console.log(`  [${isNew ? 'NEW' : 'UPDATE'}] ${result.slug}.md`);
+      console.log(`  [${isNew ? 'NEW' : 'UPDATE'}] ${result.slug}.md → ${result.category}`);
     }
 
     if (isNew) {
@@ -286,32 +356,19 @@ async function syncAll() {
     }
 
     // 매핑 업데이트
-    pageMap[result.pageId] = result.slug;
+    pageMap[result.pageId] = { slug: result.slug, category: result.category };
     syncedSlugs.add(result.slug);
   }
 
   // Notion에서 삭제/비공개된 글 제거 (매핑 기반)
-  for (const slug of existingFiles) {
+  for (const [pid, mapping] of Object.entries(pageMap)) {
+    const { slug, category } = mapping;
+    const syncedSlugs = category === '주차장' ? syncedParkingSlugs : syncedBlogSlugs;
+
     if (!syncedSlugs.has(slug)) {
-      // 매핑에 있는 slug만 삭제 (어드민에서 직접 만든 파일은 건드리지 않음)
-      const isNotionManaged = Object.values(pageMap).includes(slug);
-      if (isNotionManaged) {
-        const filePath = path.join(BLOG_DIR, `${slug}.md`);
-        fs.unlinkSync(filePath);
-        console.log(`  [DELETE] ${slug}.md`);
-
-        // 이미지 폴더도 삭제
-        const imgDir = path.join(IMAGE_DIR, slug);
-        if (fs.existsSync(imgDir)) {
-          fs.rmSync(imgDir, { recursive: true });
-          console.log(`  [DELETE] images for ${slug}`);
-        }
-
-        // 매핑에서도 제거
-        for (const [pid, s] of Object.entries(pageMap)) {
-          if (s === slug) delete pageMap[pid];
-        }
-      }
+      const contentDir = getContentDir(category);
+      deleteContent(contentDir, slug);
+      delete pageMap[pid];
     }
   }
 
@@ -334,24 +391,15 @@ async function syncSinglePage(pageId, action) {
   console.log(`=== Webhook Sync: ${action} (${pageId}) ===\n`);
 
   ensureDir(BLOG_DIR);
+  ensureDir(PARKING_EDITORIAL_DIR);
 
   const pageMap = loadPageMap();
 
   if (action === 'delete') {
-    const slug = pageMap[pageId];
-    if (slug) {
-      const filePath = path.join(BLOG_DIR, `${slug}.md`);
-      if (fs.existsSync(filePath)) {
-        fs.unlinkSync(filePath);
-        console.log(`[DELETE] ${slug}.md`);
-      }
-
-      const imgDir = path.join(IMAGE_DIR, slug);
-      if (fs.existsSync(imgDir)) {
-        fs.rmSync(imgDir, { recursive: true });
-        console.log(`[DELETE] images for ${slug}`);
-      }
-
+    const mapping = pageMap[pageId];
+    if (mapping) {
+      const contentDir = getContentDir(mapping.category);
+      deleteContent(contentDir, mapping.slug);
       delete pageMap[pageId];
       savePageMap(pageMap);
     } else {
@@ -368,20 +416,10 @@ async function syncSinglePage(pageId, action) {
   // Deleted 상태면 삭제 처리
   if (status === 'Deleted') {
     console.log(`Status is "Deleted" — removing content`);
-    const slug = pageMap[pageId];
-    if (slug) {
-      const filePath = path.join(BLOG_DIR, `${slug}.md`);
-      if (fs.existsSync(filePath)) {
-        fs.unlinkSync(filePath);
-        console.log(`[DELETE] ${slug}.md`);
-      }
-
-      const imgDir = path.join(IMAGE_DIR, slug);
-      if (fs.existsSync(imgDir)) {
-        fs.rmSync(imgDir, { recursive: true });
-        console.log(`[DELETE] images for ${slug}`);
-      }
-
+    const mapping = pageMap[pageId];
+    if (mapping) {
+      const contentDir = getContentDir(mapping.category);
+      deleteContent(contentDir, mapping.slug);
       delete pageMap[pageId];
       savePageMap(pageMap);
     }
@@ -404,7 +442,16 @@ async function syncSinglePage(pageId, action) {
     return;
   }
 
-  const filePath = path.join(BLOG_DIR, `${result.slug}.md`);
+  // 카테고리 변경 감지
+  const oldMapping = pageMap[pageId];
+  if (oldMapping && oldMapping.category !== result.category) {
+    const oldDir = getContentDir(oldMapping.category);
+    deleteContent(oldDir, oldMapping.slug);
+    console.log(`[MOVED] ${oldMapping.category} → ${result.category}`);
+  }
+
+  const contentDir = getContentDir(result.category);
+  const filePath = path.join(contentDir, `${result.slug}.md`);
   const isNew = !fs.existsSync(filePath);
 
   const dir = path.dirname(filePath);
@@ -412,10 +459,10 @@ async function syncSinglePage(pageId, action) {
     fs.mkdirSync(dir, { recursive: true });
   }
   fs.writeFileSync(filePath, result.content, 'utf-8');
-  console.log(`[${isNew ? 'NEW' : 'UPDATE'}] ${result.slug}.md`);
+  console.log(`[${isNew ? 'NEW' : 'UPDATE'}] ${result.slug}.md → ${result.category}`);
 
   // 매핑 업데이트
-  pageMap[result.pageId] = result.slug;
+  pageMap[result.pageId] = { slug: result.slug, category: result.category };
   savePageMap(pageMap);
 
   if (isNew) {
