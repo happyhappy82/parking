@@ -155,6 +155,9 @@ async function pageToMarkdown(page, pageMap) {
     return null;
   }
 
+  // 중첩 경로 → flat slug (라우팅 호환)
+  slug = slug.replace(/\//g, '-');
+
   if (!date) {
     console.warn(`  [SKIP] "${title}" — Date 없음`);
     return null;
