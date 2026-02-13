@@ -7,15 +7,6 @@ const BLOG_PATH = 'src/content/blog';
 const PARKING_EDITORIAL_PATH = 'src/content/parking-editorial';
 const LEGACY_PATH = 'src/pages/blog';
 
-// 기존 하드코딩 블로그 목록
-const LEGACY_POSTS = [
-  { slug: 'resident-priority-parking-guide', title: '거주자 우선주차 신청방법 — 자격부터 배정까지 완벽 가이드', description: '거주자 우선주차제 신청 자격, 필요 서류, 온라인 신청 방법, 배정 기준, 요금까지 한 번에 정리했습니다.', date: '2026-02-12', source: 'legacy', category: '블로그' },
-  { slug: 'seoul-public-parking-guide-2026', title: '2026 서울 공영주차장 완벽 가이드 (요금, 위치, 꿀팁 총정리)', description: '서울시 공영주차장 요금, 위치, 무료주차장 찾는 법까지 총정리했습니다.', date: '2026-02-12', source: 'legacy', category: '블로그' },
-  { slug: 'seoul-most-searched-parking-top30', title: '서울 가장 많이 검색된 주차장 TOP 30', description: '서울시 공영주차장 중 주차 면수가 가장 많은 대형 주차장 30곳을 한눈에 정리했습니다.', date: '2026-02-12', source: 'legacy', category: '블로그' },
-  { slug: 'gangdong-holiday-parking-tips', title: '강동구 명절·연휴 주차 꿀팁 총정리', description: '설날, 추석, 연휴 기간 강동구에서 주차하기 좋은 공영주차장과 꿀팁을 정리했습니다.', date: '2026-02-12', source: 'legacy', category: '블로그' },
-  { slug: 'seoul-free-parking-tips', title: '서울 무료주차장 이용 꿀팁 5가지', description: '서울에서 무료로 주차할 수 있는 곳과 알아두면 유용한 주차 꿀팁을 정리했습니다.', date: '2026-02-12', source: 'legacy', category: '블로그' },
-];
-
 function parseFrontmatter(content: string) {
   const match = content.match(/^---\n([\s\S]*?)\n---\n([\s\S]*)$/);
   if (!match) return { meta: {} as Record<string, string>, body: content };
@@ -174,14 +165,13 @@ export const GET: APIRoute = async ({ url }) => {
       // parking-editorial 디렉토리 없어도 무시
     }
 
-    const allPosts = [...LEGACY_POSTS, ...mdPosts].sort(
+    const allPosts = mdPosts.sort(
       (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
     );
 
     return json({ posts: allPosts });
   } catch (e: any) {
-    // 최후의 fallback: 레거시 글이라도 보여줌
-    return json({ posts: LEGACY_POSTS });
+    return json({ posts: [] });
   }
 };
 
