@@ -8,16 +8,16 @@ const LEGACY_PATH = 'src/pages/blog';
 
 // 기존 하드코딩 블로그 목록
 const LEGACY_POSTS = [
-  { slug: 'resident-priority-parking-guide', title: '거주자 우선주차 신청방법 — 자격부터 배정까지 완벽 가이드', description: '거주자 우선주차제 신청 자격, 필요 서류, 온라인 신청 방법, 배정 기준, 요금까지 한 번에 정리했습니다.', date: '2026-02-12', source: 'legacy' },
-  { slug: 'seoul-public-parking-guide-2026', title: '2026 서울 공영주차장 완벽 가이드 (요금, 위치, 꿀팁 총정리)', description: '서울시 공영주차장 요금, 위치, 무료주차장 찾는 법까지 총정리했습니다.', date: '2026-02-12', source: 'legacy' },
-  { slug: 'seoul-most-searched-parking-top30', title: '서울 가장 많이 검색된 주차장 TOP 30', description: '서울시 공영주차장 중 주차 면수가 가장 많은 대형 주차장 30곳을 한눈에 정리했습니다.', date: '2026-02-12', source: 'legacy' },
-  { slug: 'gangdong-holiday-parking-tips', title: '강동구 명절·연휴 주차 꿀팁 총정리', description: '설날, 추석, 연휴 기간 강동구에서 주차하기 좋은 공영주차장과 꿀팁을 정리했습니다.', date: '2026-02-12', source: 'legacy' },
-  { slug: 'seoul-free-parking-tips', title: '서울 무료주차장 이용 꿀팁 5가지', description: '서울에서 무료로 주차할 수 있는 곳과 알아두면 유용한 주차 꿀팁을 정리했습니다.', date: '2026-02-12', source: 'legacy' },
+  { slug: 'resident-priority-parking-guide', title: '거주자 우선주차 신청방법 — 자격부터 배정까지 완벽 가이드', description: '거주자 우선주차제 신청 자격, 필요 서류, 온라인 신청 방법, 배정 기준, 요금까지 한 번에 정리했습니다.', date: '2026-02-12', source: 'legacy', category: '블로그' },
+  { slug: 'seoul-public-parking-guide-2026', title: '2026 서울 공영주차장 완벽 가이드 (요금, 위치, 꿀팁 총정리)', description: '서울시 공영주차장 요금, 위치, 무료주차장 찾는 법까지 총정리했습니다.', date: '2026-02-12', source: 'legacy', category: '블로그' },
+  { slug: 'seoul-most-searched-parking-top30', title: '서울 가장 많이 검색된 주차장 TOP 30', description: '서울시 공영주차장 중 주차 면수가 가장 많은 대형 주차장 30곳을 한눈에 정리했습니다.', date: '2026-02-12', source: 'legacy', category: '블로그' },
+  { slug: 'gangdong-holiday-parking-tips', title: '강동구 명절·연휴 주차 꿀팁 총정리', description: '설날, 추석, 연휴 기간 강동구에서 주차하기 좋은 공영주차장과 꿀팁을 정리했습니다.', date: '2026-02-12', source: 'legacy', category: '블로그' },
+  { slug: 'seoul-free-parking-tips', title: '서울 무료주차장 이용 꿀팁 5가지', description: '서울에서 무료로 주차할 수 있는 곳과 알아두면 유용한 주차 꿀팁을 정리했습니다.', date: '2026-02-12', source: 'legacy', category: '블로그' },
 ];
 
 function parseFrontmatter(content: string) {
   const match = content.match(/^---\n([\s\S]*?)\n---\n([\s\S]*)$/);
-  if (!match) return { meta: {}, body: content };
+  if (!match) return { meta: {} as Record<string, string>, body: content };
 
   const meta: Record<string, string> = {};
   match[1].split('\n').forEach(line => {
@@ -35,14 +35,34 @@ function parseFrontmatter(content: string) {
   return { meta, body: match[2] };
 }
 
-function buildMarkdown(data: { title: string; description: string; date: string; content: string }) {
-  return `---
-title: "${data.title}"
-description: "${data.description}"
-date: "${data.date}"
----
+function buildMarkdown(data: {
+  title: string;
+  description: string;
+  date: string;
+  content: string;
+  category?: string;
+  notionPageId?: string;
+  breadcrumbName?: string;
+}) {
+  const lines = [
+    '---',
+    `title: "${data.title}"`,
+    `description: "${data.description}"`,
+    `date: "${data.date}"`,
+    `category: "${data.category || '블로그'}"`,
+  ];
 
-${data.content}`;
+  if (data.notionPageId) {
+    lines.push(`notionPageId: "${data.notionPageId}"`);
+  }
+
+  if (data.breadcrumbName) {
+    lines.push(`breadcrumbName: "${data.breadcrumbName}"`);
+  }
+
+  lines.push('---', '', data.content);
+
+  return lines.join('\n');
 }
 
 // GET: 목록 or 개별 조회
@@ -66,12 +86,15 @@ export const GET: APIRoute = async ({ url }) => {
         title: meta.title || '',
         description: meta.description || '',
         date: meta.date || '',
+        category: meta.category || '블로그',
+        notionPageId: meta.notionPageId || '',
+        breadcrumbName: meta.breadcrumbName || '',
         content: body.trim(),
       });
     }
 
     // 목록 조회
-    const mdPosts = [];
+    const mdPosts: any[] = [];
 
     try {
       const files = await listFiles(BLOG_PATH);
@@ -86,10 +109,11 @@ export const GET: APIRoute = async ({ url }) => {
             title: meta.title || fileSlug,
             description: meta.description || '',
             date: meta.date || '',
+            category: meta.category || '블로그',
             source: 'md',
           });
         } catch {
-          mdPosts.push({ slug: fileSlug, title: fileSlug, description: '', date: '', source: 'md' });
+          mdPosts.push({ slug: fileSlug, title: fileSlug, description: '', date: '', category: '블로그', source: 'md' });
         }
       }
     } catch {
@@ -111,13 +135,13 @@ export const GET: APIRoute = async ({ url }) => {
 export const POST: APIRoute = async ({ request }) => {
   try {
     const data = await request.json();
-    const { slug, title, description, date, content } = data;
+    const { slug, title, description, date, content, category, breadcrumbName } = data;
 
     if (!slug || !title || !content) {
       return json({ error: '필수 항목이 누락되었습니다.' }, 400);
     }
 
-    const markdown = buildMarkdown({ title, description, date, content });
+    const markdown = buildMarkdown({ title, description, date, content, category, breadcrumbName });
     await saveFile(
       `${BLOG_PATH}/${slug}.md`,
       markdown,
@@ -134,7 +158,7 @@ export const POST: APIRoute = async ({ request }) => {
 export const PUT: APIRoute = async ({ request }) => {
   try {
     const data = await request.json();
-    const { slug, type, title, description, date, content } = data;
+    const { slug, type, title, description, date, content, category, notionPageId, breadcrumbName } = data;
 
     if (!slug) return json({ error: '슬러그가 필요합니다.' }, 400);
 
@@ -149,7 +173,7 @@ export const PUT: APIRoute = async ({ request }) => {
     // 마크다운 수정
     const filePath = `${BLOG_PATH}/${slug}.md`;
     const existing = await getFile(filePath);
-    const markdown = buildMarkdown({ title, description, date, content });
+    const markdown = buildMarkdown({ title, description, date, content, category, notionPageId, breadcrumbName });
 
     await saveFile(filePath, markdown, `blog: ${title} 글 수정`, existing.sha);
 

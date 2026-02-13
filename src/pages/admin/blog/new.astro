@@ -85,6 +85,20 @@ export const prerender = false;
         </div>
       </div>
 
+      <div class="form-row">
+        <div class="form-group">
+          <label for="category">카테고리</label>
+          <select id="category" style="width:100%; padding:12px 16px; border:1px solid #ddd; border-radius:8px; font-size:14px; outline:none; font-family:inherit; cursor:pointer;">
+            <option value="블로그">블로그</option>
+            <option value="주차장">주차장</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="breadcrumbName">짧은 이름 (선택)</label>
+          <input type="text" id="breadcrumbName" placeholder="빵가루 표시용 짧은 이름" />
+        </div>
+      </div>
+
       <div class="form-group">
         <label for="description">설명 (SEO)</label>
         <input type="text" id="description" placeholder="검색 결과에 표시될 설명을 입력하세요" required />
@@ -145,6 +159,8 @@ export const prerender = false;
         date: document.getElementById('date').value,
         description: document.getElementById('description').value,
         content: document.getElementById('content').value,
+        category: document.getElementById('category').value,
+        breadcrumbName: document.getElementById('breadcrumbName').value || undefined,
       };
 
       try {

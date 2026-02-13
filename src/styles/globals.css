@@ -5,3 +5,71 @@
 body {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 }
+
+/* Notion 블로그 콘텐츠 스타일 */
+.prose table {
+  display: block;
+  overflow-x: auto;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.5rem;
+}
+
+.prose thead th:first-child {
+  border-top-left-radius: 0.5rem;
+}
+
+.prose thead th:last-child {
+  border-top-right-radius: 0.5rem;
+}
+
+.prose tbody tr:hover {
+  background-color: #f9fafb;
+}
+
+/* Notion 콜아웃 (blockquote로 변환됨) */
+.prose blockquote p:first-child {
+  margin-top: 0;
+}
+
+.prose blockquote p:last-child {
+  margin-bottom: 0;
+}
+
+/* Notion 토글 (details/summary) */
+.prose details {
+  border: 1px solid #e5e7eb;
+  border-radius: 0.5rem;
+  padding: 0.75rem 1rem;
+  margin: 0.75rem 0;
+  background-color: #fafafa;
+}
+
+.prose details summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: #1f2937;
+  padding: 0.25rem 0;
+}
+
+.prose details[open] summary {
+  margin-bottom: 0.5rem;
+  border-bottom: 1px solid #e5e7eb;
+  padding-bottom: 0.5rem;
+}
+
+/* 체크리스트 */
+.prose ul.contains-task-list {
+  list-style: none;
+  padding-left: 0;
+}
+
+.prose ul.contains-task-list li {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+
+.prose ul.contains-task-list input[type="checkbox"] {
+  margin-top: 0.35rem;
+  accent-color: #059669;
+}

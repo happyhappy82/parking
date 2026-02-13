@@ -104,6 +104,20 @@ export const prerender = false;
           <input type="date" id="date" required />
         </div>
       </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>카테고리</label>
+          <select id="category" style="width:100%; padding:10px 14px; border:1px solid #e2e8f0; border-radius:6px; font-size:14px; outline:none; font-family:inherit; cursor:pointer;">
+            <option value="블로그">블로그</option>
+            <option value="주차장">주차장</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>짧은 이름 (선택)</label>
+          <input type="text" id="breadcrumbName" placeholder="빵가루 표시용 짧은 이름" />
+        </div>
+      </div>
+      <input type="hidden" id="notionPageId" />
       <div class="form-group">
         <label>설명 (SEO)</label>
         <input type="text" id="description" required />
@@ -222,6 +236,9 @@ export const prerender = false;
         document.getElementById('date').value = data.date;
         document.getElementById('description').value = data.description;
         document.getElementById('content').value = data.content;
+        document.getElementById('category').value = data.category || '블로그';
+        document.getElementById('breadcrumbName').value = data.breadcrumbName || '';
+        document.getElementById('notionPageId').value = data.notionPageId || '';
 
         document.getElementById('loadingState').style.display = 'none';
         document.getElementById('mdForm').style.display = 'block';
@@ -249,6 +266,9 @@ export const prerender = false;
             date: document.getElementById('date').value,
             description: document.getElementById('description').value,
             content: document.getElementById('content').value,
+            category: document.getElementById('category').value,
+            breadcrumbName: document.getElementById('breadcrumbName').value || undefined,
+            notionPageId: document.getElementById('notionPageId').value || undefined,
           }),
         });
         const result = await res.json();

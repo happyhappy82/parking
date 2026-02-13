@@ -1,0 +1,118 @@
+name: Sync Notion to Blog
+
+on:
+  schedule:
+    - cron: '0 1 * * *'   # 매일 오전 10시 (KST)
+    - cron: '0 4 * * *'   # 매일 오후 1시 (KST)
+    - cron: '0 9 * * *'   # 매일 오후 6시 (KST)
+    - cron: '0 11 * * *'  # 매일 저녁 8시 (KST)
+  workflow_dispatch:
+  repository_dispatch:
+    types: [notion-webhook]
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: |
+          npm ci
+          echo "Installed packages:"
+          npm list --depth=0
+
+      - name: Sync from Notion
+        env:
+          NOTION_API_KEY: ${{ secrets.NOTION_API_KEY }}
+          NOTION_DATABASE_ID: ${{ secrets.NOTION_DATABASE_ID }}
+          SYNC_ACTION: ${{ github.event.client_payload.action }}
+          SYNC_PAGE_ID: ${{ github.event.client_payload.page_id }}
+          TRIGGER_TYPE: ${{ github.event_name }}
+        run: node scripts/sync-notion.cjs
+
+      - name: Check for changes
+        id: check_changes
+        run: |
+          CHANGES=$(git status --porcelain src/content/blog/ src/pages/ public/notion-images/ .notion-page-map.json 2>/dev/null || true)
+          if [ -z "$CHANGES" ]; then
+            echo "has_changes=false" >> $GITHUB_OUTPUT
+            echo "No changes detected in target directories"
+          else
+            echo "has_changes=true" >> $GITHUB_OUTPUT
+            echo "Changes detected:"
+            echo "$CHANGES"
+          fi
+
+      - name: Configure Git
+        if: steps.check_changes.outputs.has_changes == 'true'
+        run: |
+          git config --global user.name "Notion Sync Bot"
+          git config --global user.email "notion-sync[bot]@users.noreply.github.com"
+
+      - name: Commit and push changes
+        if: steps.check_changes.outputs.has_changes == 'true'
+        run: |
+          git add -A src/content/blog/
+          git add -A src/pages/
+          git add -A public/notion-images/
+          git add -f .notion-page-map.json
+          git commit -m "Sync blog from Notion"
+          git pull --rebase origin main
+          git push origin main
+
+      - name: Check for published slug
+        if: steps.check_changes.outputs.has_changes == 'true'
+        id: check_slug
+        run: |
+          if [ -f ".published-slug" ]; then
+            SLUG=$(cat .published-slug)
+            echo "published_slug=$SLUG" >> $GITHUB_OUTPUT
+            echo "has_slug=true" >> $GITHUB_OUTPUT
+            echo "Published slug: $SLUG"
+          else
+            echo "has_slug=false" >> $GITHUB_OUTPUT
+            echo "No published slug"
+          fi
+
+      - name: Wait for Vercel deployment
+        if: steps.check_slug.outputs.has_slug == 'true'
+        run: |
+          echo "Waiting for Vercel deployment (3 min)..."
+          sleep 180
+          echo "Done waiting"
+
+      - name: Submit to Google Search Console
+        if: steps.check_slug.outputs.has_slug == 'true'
+        env:
+          SITE_URL: https://parkingmap.kr
+          PUBLISHED_SLUG: ${{ steps.check_slug.outputs.published_slug }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+        run: node scripts/google-indexing.cjs
+
+      - name: Report completion
+        if: steps.check_changes.outputs.has_changes == 'true'
+        run: |
+          echo "Notion sync completed!"
+          if [ -f ".published-slug" ]; then
+            echo "Published: $(cat .published-slug)"
+            echo "Google indexing requested"
+          fi
+
+      - name: No changes
+        if: steps.check_changes.outputs.has_changes == 'false'
+        run: |
+          echo "No new or updated blog posts found in Notion"
+          echo "All published posts are already synced"
