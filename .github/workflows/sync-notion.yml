@@ -67,7 +67,7 @@ jobs:
         run: |
           git add -A src/content/blog/
           git add -A src/pages/
-          git add -A public/notion-images/
+          [ -d "public/notion-images/" ] && git add -A public/notion-images/ || true
           git add -f .notion-page-map.json
           git commit -m "Sync blog from Notion"
           git pull --rebase origin main
