@@ -6,12 +6,23 @@ body {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 }
 
-/* Notion 블로그 콘텐츠 스타일 */
+/* ═══════════════════════════════════════════════
+   Notion HTML 콘텐츠 스타일 (블록 직접 변환용)
+   ═══════════════════════════════════════════════ */
+
+/* ── 테이블 ── */
 .prose table {
   display: block;
   overflow-x: auto;
   border: 1px solid #e5e7eb;
   border-radius: 0.5rem;
+}
+
+.prose thead th {
+  background-color: #f8fafc;
+  font-weight: 700;
+  font-size: 0.875rem;
+  color: #374151;
 }
 
 .prose thead th:first-child {
@@ -26,7 +37,19 @@ body {
   background-color: #f9fafb;
 }
 
-/* Notion 콜아웃 (blockquote로 변환됨) */
+.prose tbody td,
+.prose tbody th {
+  font-size: 0.9rem;
+}
+
+/* ── Blockquote (인용) ── */
+.prose blockquote {
+  border-left: 3px solid #10b981;
+  background-color: #f0fdf4;
+  padding: 0.75rem 1rem;
+  border-radius: 0 0.5rem 0.5rem 0;
+}
+
 .prose blockquote p:first-child {
   margin-top: 0;
 }
@@ -35,41 +58,345 @@ body {
   margin-bottom: 0;
 }
 
-/* Notion 토글 (details/summary) */
+/* ── 토글 (details/summary) ── */
 .prose details {
   border: 1px solid #e5e7eb;
-  border-radius: 0.5rem;
-  padding: 0.75rem 1rem;
+  border-radius: 0.75rem;
+  padding: 0;
   margin: 0.75rem 0;
-  background-color: #fafafa;
+  background-color: #ffffff;
+  overflow: hidden;
+  transition: box-shadow 0.15s;
+}
+
+.prose details:hover {
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
 }
 
 .prose details summary {
   cursor: pointer;
   font-weight: 600;
   color: #1f2937;
-  padding: 0.25rem 0;
+  padding: 0.75rem 1rem;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  user-select: none;
+}
+
+.prose details summary::-webkit-details-marker {
+  display: none;
+}
+
+.prose details summary::before {
+  content: "▶";
+  font-size: 0.65em;
+  color: #9ca3af;
+  transition: transform 0.2s;
+  flex-shrink: 0;
+}
+
+.prose details[open] summary::before {
+  transform: rotate(90deg);
 }
 
 .prose details[open] summary {
-  margin-bottom: 0.5rem;
-  border-bottom: 1px solid #e5e7eb;
-  padding-bottom: 0.5rem;
+  margin-bottom: 0;
+  border-bottom: 1px solid #f1f5f9;
+  background-color: #f8fafc;
 }
 
-/* 체크리스트 */
-.prose ul.contains-task-list {
-  list-style: none;
-  padding-left: 0;
+.prose details .notion-toggle-content {
+  padding: 0.75rem 1rem;
 }
 
-.prose ul.contains-task-list li {
+.prose details .notion-toggle-content > :first-child {
+  margin-top: 0;
+}
+
+.prose details .notion-toggle-content > :last-child {
+  margin-bottom: 0;
+}
+
+/* 토글 헤딩 */
+.prose .notion-toggle-heading summary h2,
+.prose .notion-toggle-heading summary h3,
+.prose .notion-toggle-heading summary h4 {
+  margin: 0;
+  display: inline;
+}
+
+/* ── 콜아웃 ── */
+.prose .notion-callout {
+  display: flex;
+  gap: 0.75rem;
+  padding: 1rem 1.25rem;
+  border-radius: 0.75rem;
+  margin: 1rem 0;
+  background-color: #f8fafc;
+  border: 1px solid #e2e8f0;
+  line-height: 1.6;
+}
+
+.prose .notion-callout-icon {
+  font-size: 1.25rem;
+  flex-shrink: 0;
+  line-height: 1.6;
+}
+
+.prose .notion-callout-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.prose .notion-callout-content > :first-child {
+  margin-top: 0;
+}
+
+.prose .notion-callout-content > :last-child {
+  margin-bottom: 0;
+}
+
+/* 콜아웃 색상 */
+.prose .notion-callout-gray_background { background-color: #f3f4f6; border-color: #e5e7eb; }
+.prose .notion-callout-brown_background { background-color: #fdf6ee; border-color: #e8d5b7; }
+.prose .notion-callout-orange_background { background-color: #fff7ed; border-color: #fed7aa; }
+.prose .notion-callout-yellow_background { background-color: #fefce8; border-color: #fde68a; }
+.prose .notion-callout-green_background { background-color: #f0fdf4; border-color: #bbf7d0; }
+.prose .notion-callout-blue_background { background-color: #eff6ff; border-color: #bfdbfe; }
+.prose .notion-callout-purple_background { background-color: #faf5ff; border-color: #e9d5ff; }
+.prose .notion-callout-pink_background { background-color: #fdf2f8; border-color: #fbcfe8; }
+.prose .notion-callout-red_background { background-color: #fef2f2; border-color: #fecaca; }
+
+.prose .notion-callout-gray { background-color: #f9fafb; border-color: #d1d5db; }
+.prose .notion-callout-brown { background-color: #faf5f0; border-color: #d6c4a8; }
+.prose .notion-callout-orange { background-color: #fff8f1; border-color: #fdba74; }
+.prose .notion-callout-yellow { background-color: #fffef5; border-color: #fcd34d; }
+.prose .notion-callout-green { background-color: #f0fdf4; border-color: #86efac; }
+.prose .notion-callout-blue { background-color: #f0f7ff; border-color: #93c5fd; }
+.prose .notion-callout-purple { background-color: #faf5ff; border-color: #d8b4fe; }
+.prose .notion-callout-pink { background-color: #fdf2f8; border-color: #f9a8d4; }
+.prose .notion-callout-red { background-color: #fef2f2; border-color: #fca5a5; }
+
+/* ── 텍스트 색상 ── */
+.notion-color-gray { color: #787774; }
+.notion-color-brown { color: #9f6b53; }
+.notion-color-orange { color: #d9730d; }
+.notion-color-yellow { color: #cb912f; }
+.notion-color-green { color: #448361; }
+.notion-color-blue { color: #337ea9; }
+.notion-color-purple { color: #9065b0; }
+.notion-color-pink { color: #c14c8a; }
+.notion-color-red { color: #d44c47; }
+
+/* ── 배경 색상 ── */
+.notion-bg-gray { background-color: #f1f1ef; padding: 0.1em 0.35em; border-radius: 0.25rem; }
+.notion-bg-brown { background-color: #f4eeee; padding: 0.1em 0.35em; border-radius: 0.25rem; }
+.notion-bg-orange { background-color: #fbecdd; padding: 0.1em 0.35em; border-radius: 0.25rem; }
+.notion-bg-yellow { background-color: #fbf3db; padding: 0.1em 0.35em; border-radius: 0.25rem; }
+.notion-bg-green { background-color: #edf3ec; padding: 0.1em 0.35em; border-radius: 0.25rem; }
+.notion-bg-blue { background-color: #e7f3f8; padding: 0.1em 0.35em; border-radius: 0.25rem; }
+.notion-bg-purple { background-color: #f4f0f7; padding: 0.1em 0.35em; border-radius: 0.25rem; }
+.notion-bg-pink { background-color: #f9f0f5; padding: 0.1em 0.35em; border-radius: 0.25rem; }
+.notion-bg-red { background-color: #fdebec; padding: 0.1em 0.35em; border-radius: 0.25rem; }
+
+/* ── 이미지 ── */
+.prose .notion-image {
+  margin: 1.5rem 0;
+  text-align: center;
+}
+
+.prose .notion-image img {
+  border-radius: 0.5rem;
+  max-width: 100%;
+  height: auto;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.prose .notion-image figcaption {
+  font-size: 0.8rem;
+  color: #6b7280;
+  margin-top: 0.5rem;
+  text-align: center;
+}
+
+/* ── 코드 캡션 ── */
+.prose .notion-code-caption {
+  font-size: 0.8rem;
+  color: #6b7280;
+  margin-top: -0.75rem;
+  margin-bottom: 1rem;
+  text-align: center;
+}
+
+/* ── 체크리스트 (TODO) ── */
+.prose .notion-todo-list {
+  margin: 0.75rem 0;
+}
+
+.prose .notion-todo {
+  padding: 0.25rem 0;
+}
+
+.prose .notion-todo label {
   display: flex;
   align-items: flex-start;
   gap: 0.5rem;
+  cursor: default;
+  line-height: 1.6;
 }
 
-.prose ul.contains-task-list input[type="checkbox"] {
+.prose .notion-todo input[type="checkbox"] {
   margin-top: 0.35rem;
   accent-color: #059669;
+  width: 1rem;
+  height: 1rem;
+  flex-shrink: 0;
+}
+
+.prose .notion-todo input[type="checkbox"]:checked + span,
+.prose .notion-todo input[type="checkbox"]:checked ~ * {
+  color: #9ca3af;
+  text-decoration: line-through;
+}
+
+/* ── 북마크 / 링크 ── */
+.prose .notion-bookmark {
+  margin: 0.75rem 0;
+}
+
+.prose .notion-bookmark a {
+  display: block;
+  padding: 0.75rem 1rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.5rem;
+  color: #1e293b;
+  text-decoration: none;
+  font-size: 0.875rem;
+  background: #fafbfc;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition: all 0.15s;
+}
+
+.prose .notion-bookmark a:hover {
+  border-color: #10b981;
+  background-color: #f0fdf4;
+}
+
+/* ── 비디오 (YouTube 등) ── */
+.prose .notion-video {
+  margin: 1.5rem 0;
+  border-radius: 0.75rem;
+  overflow: hidden;
+}
+
+.prose .notion-video iframe {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border: none;
+  border-radius: 0.75rem;
+}
+
+.prose .notion-video video {
+  width: 100%;
+  border-radius: 0.75rem;
+}
+
+/* ── 임베드 ── */
+.prose .notion-embed {
+  margin: 0.75rem 0;
+}
+
+.prose .notion-embed a {
+  display: block;
+  padding: 0.75rem 1rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.5rem;
+  color: #337ea9;
+  font-size: 0.875rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── 컬럼 레이아웃 ── */
+.prose .notion-columns {
+  display: grid;
+  grid-template-columns: repeat(var(--col-count, 2), 1fr);
+  gap: 1.5rem;
+  margin: 1rem 0;
+}
+
+@media (max-width: 640px) {
+  .prose .notion-columns {
+    grid-template-columns: 1fr;
+    gap: 0.75rem;
+  }
+}
+
+.prose .notion-column > :first-child {
+  margin-top: 0;
+}
+
+.prose .notion-column > :last-child {
+  margin-bottom: 0;
+}
+
+/* ── 수식 ── */
+.prose .notion-equation {
+  text-align: center;
+  padding: 1rem;
+  margin: 0.75rem 0;
+  background-color: #f8fafc;
+  border-radius: 0.5rem;
+  overflow-x: auto;
+}
+
+.prose .notion-equation code {
+  font-size: 1.1rem;
+  background: none;
+  padding: 0;
+}
+
+/* ── 파일 첨부 ── */
+.prose .notion-file {
+  margin: 0.5rem 0;
+}
+
+.prose .notion-file a {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.5rem;
+  font-size: 0.875rem;
+  color: #374151;
+  text-decoration: none;
+  background: #fafbfc;
+  transition: all 0.15s;
+}
+
+.prose .notion-file a:hover {
+  border-color: #10b981;
+  background-color: #f0fdf4;
+}
+
+/* ── 오디오 ── */
+.prose .notion-audio {
+  margin: 0.75rem 0;
+}
+
+.prose .notion-audio audio {
+  width: 100%;
+  border-radius: 0.5rem;
+}
+
+/* ── 밑줄 (Notion에서 자주 사용) ── */
+.prose u {
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }

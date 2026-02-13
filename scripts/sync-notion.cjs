@@ -1,7 +1,9 @@
 /**
  * Notion → Blog/Parking 동기화 스크립트
  *
- * Notion DB에서 컨텐츠를 가져와 카테고리별로 분리 저장한다.
+ * Notion DB에서 컨텐츠를 가져와 Notion API 블록을 직접 HTML로 변환한다.
+ * (텍스트/문자 파싱 없이 Notion 블록 구조를 그대로 HTML로 보존)
+ *
  *   - 블로그 카테고리 → src/content/blog/*.md
  *   - 주차장 카테고리 → src/content/parking-editorial/*.md
  *
@@ -14,7 +16,6 @@
  */
 
 const { Client } = require('@notionhq/client');
-const { NotionToMarkdown } = require('notion-to-md');
 const fs = require('fs');
 const path = require('path');
 const https = require('https');
@@ -22,7 +23,6 @@ const http = require('http');
 
 // ── 설정 ──
 const notion = new Client({ auth: process.env.NOTION_API_KEY });
-const n2m = new NotionToMarkdown({ notionClient: notion });
 const DATABASE_ID = process.env.NOTION_DATABASE_ID;
 
 const BLOG_DIR = path.join(__dirname, '..', 'src', 'content', 'blog');
@@ -71,7 +71,6 @@ function loadPageMap() {
   if (fs.existsSync(PAGE_MAP_FILE)) {
     try {
       const raw = JSON.parse(fs.readFileSync(PAGE_MAP_FILE, 'utf-8'));
-      // 마이그레이션: 이전 형식(string)을 새 형식({slug, category})으로 변환
       const migrated = {};
       for (const [key, value] of Object.entries(raw)) {
         if (typeof value === 'string') {
@@ -126,6 +125,409 @@ function sanitizeFilename(url) {
   return `${base}-${hash}${ext}`;
 }
 
+// ── HTML 이스케이프 ──
+function escapeHtml(str) {
+  if (!str) return '';
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+// ── Notion 리치 텍스트 → HTML ──
+function richTextToHtml(richTextArray) {
+  if (!richTextArray || !richTextArray.length) return '';
+  return richTextArray.map((rt) => {
+    let text = escapeHtml(rt.plain_text);
+    // 줄바꿈 → <br>
+    text = text.replace(/\n/g, '<br>');
+
+    if (rt.href) {
+      text = `<a href="${escapeHtml(rt.href)}">${text}</a>`;
+    }
+
+    const ann = rt.annotations;
+    if (ann.code) text = `<code>${text}</code>`;
+    if (ann.bold) text = `<strong>${text}</strong>`;
+    if (ann.italic) text = `<em>${text}</em>`;
+    if (ann.strikethrough) text = `<del>${text}</del>`;
+    if (ann.underline) text = `<u>${text}</u>`;
+    if (ann.color && ann.color !== 'default') {
+      const cls = ann.color.includes('_background')
+        ? `notion-bg-${ann.color.replace('_background', '')}`
+        : `notion-color-${ann.color}`;
+      text = `<span class="${cls}">${text}</span>`;
+    }
+
+    return text;
+  }).join('');
+}
+
+// ── Notion 블록 재귀 조회 ──
+async function fetchBlockChildren(blockId) {
+  const blocks = [];
+  let cursor;
+  do {
+    const response = await notion.blocks.children.list({
+      block_id: blockId,
+      start_cursor: cursor,
+      page_size: 100,
+    });
+    blocks.push(...response.results);
+    cursor = response.has_more ? response.next_cursor : undefined;
+  } while (cursor);
+
+  for (const block of blocks) {
+    if (block.has_children && block.type !== 'child_page' && block.type !== 'child_database') {
+      block.children = await fetchBlockChildren(block.id);
+    }
+  }
+  return blocks;
+}
+
+// ── YouTube ID 추출 ──
+function extractYouTubeId(url) {
+  if (!url) return null;
+  const match = url.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=))([^&?\s]+)/);
+  return match ? match[1] : null;
+}
+
+// ── 이미지 블록 처리 ──
+async function handleImageBlock(block, slug) {
+  const imageData = block.image;
+  const url = imageData.type === 'external' ? imageData.external.url : imageData.file.url;
+  const captionHtml = imageData.caption ? richTextToHtml(imageData.caption) : '';
+  const captionPlain = imageData.caption ? richTextToPlain(imageData.caption) : '';
+
+  const filename = sanitizeFilename(url);
+  const localPath = path.join(IMAGE_DIR, slug, filename);
+  const publicPath = `/notion-images/${slug}/${filename}`;
+
+  try {
+    ensureDir(path.join(IMAGE_DIR, slug));
+    await downloadFile(url, localPath);
+    console.log(`    [IMG] ${filename}`);
+
+    let html = '<figure class="notion-image">';
+    html += `<img src="${publicPath}" alt="${escapeHtml(captionPlain)}" loading="lazy">`;
+    if (captionHtml) {
+      html += `<figcaption>${captionHtml}</figcaption>`;
+    }
+    html += '</figure>';
+    return html;
+  } catch (err) {
+    console.warn(`    [IMG FAIL] ${filename}: ${err.message}`);
+    return `<figure class="notion-image"><img src="${escapeHtml(url)}" alt="${escapeHtml(captionPlain)}" loading="lazy"></figure>`;
+  }
+}
+
+// ── 단일 블록 → HTML ──
+async function renderBlock(block, slug) {
+  const type = block.type;
+  const data = block[type];
+  if (!data) return '';
+
+  switch (type) {
+    case 'paragraph': {
+      const text = richTextToHtml(data.rich_text);
+      let childHtml = '';
+      if (block.children) {
+        childHtml = await blocksToHtml(block.children, slug);
+      }
+      if (!text && !childHtml) return '';
+      return `<p>${text}</p>${childHtml}`;
+    }
+
+    case 'heading_1': {
+      const text = richTextToHtml(data.rich_text);
+      if (data.is_toggleable && block.children) {
+        return `<details class="notion-toggle-heading"><summary><h2>${text}</h2></summary>${await blocksToHtml(block.children, slug)}</details>`;
+      }
+      return `<h2>${text}</h2>`;
+    }
+
+    case 'heading_2': {
+      const text = richTextToHtml(data.rich_text);
+      if (data.is_toggleable && block.children) {
+        return `<details class="notion-toggle-heading"><summary><h3>${text}</h3></summary>${await blocksToHtml(block.children, slug)}</details>`;
+      }
+      return `<h3>${text}</h3>`;
+    }
+
+    case 'heading_3': {
+      const text = richTextToHtml(data.rich_text);
+      if (data.is_toggleable && block.children) {
+        return `<details class="notion-toggle-heading"><summary><h4>${text}</h4></summary>${await blocksToHtml(block.children, slug)}</details>`;
+      }
+      return `<h4>${text}</h4>`;
+    }
+
+    case 'bulleted_list_item':
+    case 'numbered_list_item':
+      // blocksToHtml에서 그룹핑 처리
+      return '';
+
+    case 'to_do': {
+      const checked = data.checked ? ' checked' : '';
+      const text = richTextToHtml(data.rich_text);
+      let childHtml = '';
+      if (block.children) {
+        childHtml = await blocksToHtml(block.children, slug);
+      }
+      return `<div class="notion-todo"><label><input type="checkbox"${checked} disabled> ${text}</label>${childHtml}</div>`;
+    }
+
+    case 'toggle': {
+      const summary = richTextToHtml(data.rich_text);
+      let childHtml = '';
+      if (block.children) {
+        childHtml = await blocksToHtml(block.children, slug);
+      }
+      return `<details class="notion-toggle"><summary>${summary}</summary><div class="notion-toggle-content">${childHtml}</div></details>`;
+    }
+
+    case 'callout': {
+      const icon = data.icon
+        ? data.icon.type === 'emoji'
+          ? data.icon.emoji
+          : ''
+        : '';
+      const text = richTextToHtml(data.rich_text);
+      const colorClass = data.color && data.color !== 'default'
+        ? ` notion-callout-${data.color}`
+        : '';
+      let childHtml = '';
+      if (block.children) {
+        childHtml = await blocksToHtml(block.children, slug);
+      }
+      return `<div class="notion-callout${colorClass}"><div class="notion-callout-icon">${icon}</div><div class="notion-callout-content">${text}${childHtml}</div></div>`;
+    }
+
+    case 'quote': {
+      const text = richTextToHtml(data.rich_text);
+      let childHtml = '';
+      if (block.children) {
+        childHtml = await blocksToHtml(block.children, slug);
+      }
+      return `<blockquote><p>${text}</p>${childHtml}</blockquote>`;
+    }
+
+    case 'code': {
+      const code = richTextToPlain(data.rich_text);
+      const lang = data.language || '';
+      const captionHtml = data.caption ? richTextToHtml(data.caption) : '';
+      let html = `<pre><code class="language-${escapeHtml(lang)}">${escapeHtml(code)}</code></pre>`;
+      if (captionHtml) {
+        html += `<p class="notion-code-caption">${captionHtml}</p>`;
+      }
+      return html;
+    }
+
+    case 'image':
+      return await handleImageBlock(block, slug);
+
+    case 'divider':
+      return '<hr>';
+
+    case 'table': {
+      const hasColumnHeader = data.has_column_header;
+      const hasRowHeader = data.has_row_header;
+      let html = '<table>';
+
+      if (block.children) {
+        let inBody = false;
+        block.children.forEach((row, rowIndex) => {
+          if (row.type !== 'table_row') return;
+          const cells = row.table_row.cells;
+          const isHeaderRow = hasColumnHeader && rowIndex === 0;
+
+          if (isHeaderRow) {
+            html += '<thead><tr>';
+            cells.forEach((cell) => {
+              html += `<th>${richTextToHtml(cell)}</th>`;
+            });
+            html += '</tr></thead>';
+          } else {
+            if (!inBody) {
+              html += '<tbody>';
+              inBody = true;
+            }
+            html += '<tr>';
+            cells.forEach((cell, cellIndex) => {
+              const tag = hasRowHeader && cellIndex === 0 ? 'th' : 'td';
+              html += `<${tag}>${richTextToHtml(cell)}</${tag}>`;
+            });
+            html += '</tr>';
+          }
+        });
+        if (inBody) html += '</tbody>';
+      }
+
+      html += '</table>';
+      return html;
+    }
+
+    case 'bookmark': {
+      const url = data.url || '';
+      const captionHtml = data.caption ? richTextToHtml(data.caption) : '';
+      return `<div class="notion-bookmark"><a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${captionHtml || escapeHtml(url)}</a></div>`;
+    }
+
+    case 'link_preview': {
+      const url = data.url || '';
+      return `<div class="notion-bookmark"><a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(url)}</a></div>`;
+    }
+
+    case 'embed': {
+      const url = data.url || '';
+      const videoId = extractYouTubeId(url);
+      if (videoId) {
+        return `<div class="notion-video"><iframe src="https://www.youtube.com/embed/${videoId}" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen loading="lazy"></iframe></div>`;
+      }
+      return `<div class="notion-embed"><a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(url)}</a></div>`;
+    }
+
+    case 'video': {
+      if (data.type === 'external') {
+        const url = data.external.url;
+        const videoId = extractYouTubeId(url);
+        if (videoId) {
+          return `<div class="notion-video"><iframe src="https://www.youtube.com/embed/${videoId}" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen loading="lazy"></iframe></div>`;
+        }
+        return `<div class="notion-video"><video src="${escapeHtml(url)}" controls></video></div>`;
+      }
+      if (data.type === 'file') {
+        return `<div class="notion-video"><video src="${escapeHtml(data.file.url)}" controls></video></div>`;
+      }
+      return '';
+    }
+
+    case 'column_list': {
+      if (!block.children) return '';
+      const cols = block.children.filter((c) => c.type === 'column');
+      let html = `<div class="notion-columns" style="--col-count:${cols.length}">`;
+      for (const col of cols) {
+        html += '<div class="notion-column">';
+        if (col.children) {
+          html += await blocksToHtml(col.children, slug);
+        }
+        html += '</div>';
+      }
+      html += '</div>';
+      return html;
+    }
+
+    case 'column':
+      return '';
+
+    case 'equation': {
+      const expr = data.expression || '';
+      return `<div class="notion-equation"><code>${escapeHtml(expr)}</code></div>`;
+    }
+
+    case 'synced_block': {
+      if (block.children) {
+        return await blocksToHtml(block.children, slug);
+      }
+      return '';
+    }
+
+    case 'file': {
+      const fileUrl = data.type === 'external' ? data.external.url : (data.file ? data.file.url : '');
+      const captionHtml = data.caption ? richTextToHtml(data.caption) : '';
+      const name = data.name || captionHtml || fileUrl;
+      return `<div class="notion-file"><a href="${escapeHtml(fileUrl)}" target="_blank" rel="noopener noreferrer">📎 ${name}</a></div>`;
+    }
+
+    case 'pdf': {
+      const pdfUrl = data.type === 'external' ? data.external.url : (data.file ? data.file.url : '');
+      return `<div class="notion-file"><a href="${escapeHtml(pdfUrl)}" target="_blank" rel="noopener noreferrer">📄 PDF 파일 보기</a></div>`;
+    }
+
+    case 'audio': {
+      const audioUrl = data.type === 'external' ? data.external.url : (data.file ? data.file.url : '');
+      return `<div class="notion-audio"><audio src="${escapeHtml(audioUrl)}" controls></audio></div>`;
+    }
+
+    case 'child_page':
+    case 'child_database':
+    case 'table_of_contents':
+    case 'breadcrumb':
+    case 'link_to_page':
+    case 'unsupported':
+      return '';
+
+    default:
+      console.warn(`    [BLOCK] 미지원 블록 타입: ${type}`);
+      return '';
+  }
+}
+
+// ── 블록 배열 → HTML (리스트 그룹핑 포함) ──
+async function blocksToHtml(blocks, slug) {
+  const parts = [];
+  let i = 0;
+
+  while (i < blocks.length) {
+    const block = blocks[i];
+
+    // 연속 bulleted_list_item → <ul>
+    if (block.type === 'bulleted_list_item') {
+      let listHtml = '<ul>';
+      while (i < blocks.length && blocks[i].type === 'bulleted_list_item') {
+        const item = blocks[i];
+        const text = richTextToHtml(item.bulleted_list_item.rich_text);
+        let childHtml = '';
+        if (item.children) {
+          childHtml = await blocksToHtml(item.children, slug);
+        }
+        listHtml += `<li>${text}${childHtml}</li>`;
+        i++;
+      }
+      listHtml += '</ul>';
+      parts.push(listHtml);
+      continue;
+    }
+
+    // 연속 numbered_list_item → <ol>
+    if (block.type === 'numbered_list_item') {
+      let listHtml = '<ol>';
+      while (i < blocks.length && blocks[i].type === 'numbered_list_item') {
+        const item = blocks[i];
+        const text = richTextToHtml(item.numbered_list_item.rich_text);
+        let childHtml = '';
+        if (item.children) {
+          childHtml = await blocksToHtml(item.children, slug);
+        }
+        listHtml += `<li>${text}${childHtml}</li>`;
+        i++;
+      }
+      listHtml += '</ol>';
+      parts.push(listHtml);
+      continue;
+    }
+
+    // 연속 to_do → <div class="notion-todo-list">
+    if (block.type === 'to_do') {
+      let todoHtml = '<div class="notion-todo-list">';
+      while (i < blocks.length && blocks[i].type === 'to_do') {
+        todoHtml += await renderBlock(blocks[i], slug);
+        i++;
+      }
+      todoHtml += '</div>';
+      parts.push(todoHtml);
+      continue;
+    }
+
+    const html = await renderBlock(block, slug);
+    if (html) parts.push(html);
+    i++;
+  }
+
+  return parts.join('\n');
+}
+
 // ── 메인 로직 ──
 
 /** DB에서 Published 페이지 전체 조회 */
@@ -155,8 +557,8 @@ async function getPageById(pageId) {
   return notion.pages.retrieve({ page_id: pageId });
 }
 
-/** Notion 페이지 → Markdown 변환 */
-async function pageToMarkdown(page, pageMap) {
+/** Notion 페이지 → HTML 변환 (frontmatter + HTML 본문) */
+async function pageToContent(page, pageMap) {
   const pageId = page.id;
   const title = getPropertyValue(page, 'Title');
   const category = getPropertyValue(page, 'Category') || '블로그';
@@ -174,7 +576,6 @@ async function pageToMarkdown(page, pageMap) {
   }
 
   // 중첩 경로 → flat slug (파일시스템 호환)
-  // 예: 서울특별시/강동구/천호동/천호역 → 서울특별시-강동구-천호동-천호역
   const originalSlug = slug;
   slug = slug.replace(/\//g, '-');
 
@@ -183,42 +584,11 @@ async function pageToMarkdown(page, pageMap) {
     return null;
   }
 
-  // Notion 본문 → 마크다운 (notion-to-md 그대로 사용)
-  const mdBlocks = await n2m.pageToMarkdown(pageId);
-  let mdContent = n2m.toMarkdownString(mdBlocks).parent || '';
-
-  // 이미지 다운로드 & 경로 치환
-  const imageRegex = /!\[([^\]]*)\]\((https?:\/\/[^)]+)\)/g;
-  let match;
-  const imagePromises = [];
-
-  while ((match = imageRegex.exec(mdContent)) !== null) {
-    const [fullMatch, alt, imageUrl] = match;
-    const filename = sanitizeFilename(imageUrl);
-    const localPath = path.join(IMAGE_DIR, slug, filename);
-    const publicPath = `/notion-images/${slug}/${filename}`;
-
-    imagePromises.push(
-      (async () => {
-        try {
-          ensureDir(path.join(IMAGE_DIR, slug));
-          await downloadFile(imageUrl, localPath);
-          console.log(`    [IMG] ${filename}`);
-          return { fullMatch, replacement: `![${alt}](${publicPath})` };
-        } catch (err) {
-          console.warn(`    [IMG FAIL] ${filename}: ${err.message}`);
-          return null;
-        }
-      })()
-    );
-  }
-
-  const imageResults = await Promise.all(imagePromises);
-  for (const result of imageResults) {
-    if (result) {
-      mdContent = mdContent.replace(result.fullMatch, result.replacement);
-    }
-  }
+  // Notion 본문 블록 → HTML 직접 변환 (텍스트 파싱 없음)
+  console.log(`  [FETCH] 블록 가져오는 중...`);
+  const blocks = await fetchBlockChildren(pageId);
+  console.log(`  [CONVERT] ${blocks.length}개 블록 → HTML 변환`);
+  const htmlContent = await blocksToHtml(blocks, slug);
 
   // Frontmatter 생성
   const frontmatter = [
@@ -234,7 +604,7 @@ async function pageToMarkdown(page, pageMap) {
     frontmatter.push(`breadcrumbName: "${breadcrumbName.replace(/"/g, '\\"')}"`);
   }
 
-  // 주차장 카테고리: 라우팅 정보 추가 (sido/sigungu/dong/parkingSlug)
+  // 주차장 카테고리: 라우팅 정보 추가
   if (category === '주차장') {
     const parts = originalSlug.split('/');
     if (parts.length >= 4) {
@@ -251,7 +621,7 @@ async function pageToMarkdown(page, pageMap) {
     slug,
     pageId,
     category,
-    content: frontmatter.join('\n') + '\n\n' + mdContent.trim() + '\n',
+    content: frontmatter.join('\n') + '\n\n' + htmlContent.trim() + '\n',
   };
 }
 
@@ -291,7 +661,7 @@ function deleteContent(contentDir, slug) {
 
 /** 전체 동기화 (예약 발행 / 수동 실행) */
 async function syncAll() {
-  console.log('=== Full Sync: Notion → Blog/Parking ===\n');
+  console.log('=== Full Sync: Notion → Blog/Parking (HTML 직접 변환) ===\n');
 
   const pages = await getPublishedPages();
   console.log(`Published pages: ${pages.length}\n`);
@@ -314,7 +684,7 @@ async function syncAll() {
     const title = getPropertyValue(page, 'Title');
     console.log(`Processing: "${title}"`);
 
-    const result = await pageToMarkdown(page, pageMap);
+    const result = await pageToContent(page, pageMap);
     if (!result) continue;
 
     const contentDir = getContentDir(result.category);
@@ -324,7 +694,7 @@ async function syncAll() {
     const filePath = path.join(contentDir, `${result.slug}.md`);
     const isNew = !existingFiles.has(result.slug);
 
-    // 카테고리 변경 감지: 이전 매핑과 현재 카테고리가 다르면 이전 파일 삭제
+    // 카테고리 변경 감지
     const oldMapping = pageMap[result.pageId];
     if (oldMapping && oldMapping.category !== result.category) {
       const oldDir = getContentDir(oldMapping.category);
@@ -413,7 +783,6 @@ async function syncSinglePage(pageId, action) {
   const page = await getPageById(pageId);
   const status = getPropertyValue(page, 'Status');
 
-  // Deleted 상태면 삭제 처리
   if (status === 'Deleted') {
     console.log(`Status is "Deleted" — removing content`);
     const mapping = pageMap[pageId];
@@ -436,7 +805,7 @@ async function syncSinglePage(pageId, action) {
   const title = getPropertyValue(page, 'Title');
   console.log(`Processing: "${title}"`);
 
-  const result = await pageToMarkdown(page, pageMap);
+  const result = await pageToContent(page, pageMap);
   if (!result) {
     console.log('Could not convert page — skipping');
     return;
