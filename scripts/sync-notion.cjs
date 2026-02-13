@@ -644,7 +644,7 @@ function deleteContent(slug) {
   }
 }
 
-/** 전체 동기화 (예약 발행 / 수동 실행) */
+/** 전체 동기화 (예약 발행 — Date 기준 과거 글 1개씩) */
 async function syncAll() {
   console.log('=== Full Sync: Notion → Blog (HTML 직접 변환) ===\n');
 
@@ -659,18 +659,47 @@ async function syncAll() {
   // page_id 매핑 로드
   const pageMap = loadPageMap();
 
+  const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+
+  // 이미 싱크된 글 / 아직 안 된 글 분류
+  const alreadySynced = [];
+  const newCandidates = [];
+
+  for (const page of pages) {
+    const pageId = page.id;
+    const date = getPropertyValue(page, 'Date') || today;
+
+    if (pageMap[pageId]) {
+      // 이미 싱크된 글 → 업데이트 체크 대상
+      alreadySynced.push(page);
+    } else if (date <= today) {
+      // 아직 안 싱크됐고 Date가 오늘 이하 → 발행 후보
+      newCandidates.push({ page, date });
+    } else {
+      console.log(`  [WAIT] "${getPropertyValue(page, 'Title')}" — 예약일 ${date} (아직 미도래)`);
+    }
+  }
+
+  // 새 글은 Date 오래된 순 정렬, 1개만 발행
+  newCandidates.sort((a, b) => a.date.localeCompare(b.date));
+  const newPage = newCandidates.length > 0 ? newCandidates[0].page : null;
+
+  if (newCandidates.length > 1) {
+    console.log(`  [INFO] 발행 대기 ${newCandidates.length}개 중 1개만 싱크 (가장 오래된 글 우선)\n`);
+  }
+
   const syncedSlugs = new Set();
   const newSlugs = [];
 
-  for (const page of pages) {
+  // 1) 이미 싱크된 글 — 업데이트 체크
+  for (const page of alreadySynced) {
     const title = getPropertyValue(page, 'Title');
-    console.log(`Processing: "${title}"`);
+    console.log(`Processing (update): "${title}"`);
 
     const result = await pageToContent(page, pageMap);
     if (!result) continue;
 
     const filePath = path.join(BLOG_DIR, `${result.slug}.md`);
-    const isNew = !existingFiles.has(result.slug);
 
     // 기존 파일과 비교해서 변경된 경우만 쓰기
     let shouldWrite = true;
@@ -688,16 +717,32 @@ async function syncAll() {
         fs.mkdirSync(dir, { recursive: true });
       }
       fs.writeFileSync(filePath, result.content, 'utf-8');
-      console.log(`  [${isNew ? 'NEW' : 'UPDATE'}] ${result.slug}.md`);
+      console.log(`  [UPDATE] ${result.slug}.md`);
     }
 
-    if (isNew) {
-      newSlugs.push(result.slug);
-    }
-
-    // 매핑 업데이트
     pageMap[result.pageId] = result.slug;
     syncedSlugs.add(result.slug);
+  }
+
+  // 2) 새 글 1개 발행
+  if (newPage) {
+    const title = getPropertyValue(newPage, 'Title');
+    console.log(`Processing (new): "${title}"`);
+
+    const result = await pageToContent(newPage, pageMap);
+    if (result) {
+      const filePath = path.join(BLOG_DIR, `${result.slug}.md`);
+      const dir = path.dirname(filePath);
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+      }
+      fs.writeFileSync(filePath, result.content, 'utf-8');
+      console.log(`  [NEW] ${result.slug}.md`);
+
+      pageMap[result.pageId] = result.slug;
+      syncedSlugs.add(result.slug);
+      newSlugs.push(result.slug);
+    }
   }
 
   // Notion에서 삭제/비공개된 글 제거
