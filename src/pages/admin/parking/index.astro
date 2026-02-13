@@ -112,9 +112,83 @@ export const prerender = false;
     .btn-gray { background: #e5e7eb; color: #374151; }
     .btn-gray:hover { background: #d1d5db; }
     .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-red { background: #fee2e2; color: #dc2626; }
+    .btn-red:hover { background: #fecaca; }
     .msg { padding: 12px 16px; border-radius: 8px; font-size: 14px; margin-top: 12px; display: none; }
     .msg-success { background: #d1fae5; color: #065f46; }
     .msg-error { background: #fee2e2; color: #dc2626; }
+
+    /* 모달 탭 */
+    .modal-tabs {
+      display: flex; gap: 0; border-bottom: 2px solid #e5e7eb;
+      padding: 0 24px; background: #f9fafb;
+    }
+    .modal-tab {
+      padding: 12px 20px; border: none; background: none;
+      font-size: 14px; font-weight: 600; color: #6b7280;
+      cursor: pointer; position: relative; transition: color 0.15s;
+    }
+    .modal-tab:hover { color: #111; }
+    .modal-tab.active {
+      color: #059669;
+    }
+    .modal-tab.active::after {
+      content: ''; position: absolute; bottom: -2px; left: 0; right: 0;
+      height: 2px; background: #059669;
+    }
+    .modal-tab .tab-count {
+      display: inline-block; margin-left: 6px; padding: 1px 7px;
+      border-radius: 10px; font-size: 11px; font-weight: 700;
+      background: #e5e7eb; color: #6b7280;
+    }
+    .modal-tab.active .tab-count { background: #d1fae5; color: #059669; }
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+
+    /* 사진 관리 */
+    .photo-drop {
+      border: 2px dashed #d1d5db; border-radius: 12px; padding: 40px 20px;
+      text-align: center; cursor: pointer; transition: all 0.2s;
+      background: #fafafa; margin-bottom: 16px;
+    }
+    .photo-drop:hover, .photo-drop.dragover {
+      border-color: #059669; background: #ecfdf5;
+    }
+    .photo-drop-icon { font-size: 40px; margin-bottom: 8px; }
+    .photo-drop-text { font-size: 14px; color: #6b7280; }
+    .photo-drop-sub { font-size: 12px; color: #9ca3af; margin-top: 4px; }
+    .photo-grid {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+      gap: 12px; margin-top: 16px;
+    }
+    .photo-item {
+      position: relative; border-radius: 10px; overflow: hidden;
+      background: #f3f4f6; aspect-ratio: 4/3;
+    }
+    .photo-item img {
+      width: 100%; height: 100%; object-fit: cover;
+    }
+    .photo-item .photo-delete {
+      position: absolute; top: 6px; right: 6px;
+      width: 28px; height: 28px; border-radius: 50%;
+      background: rgba(220,38,38,0.9); color: white;
+      border: none; cursor: pointer; font-size: 16px;
+      display: flex; align-items: center; justify-content: center;
+      opacity: 0; transition: opacity 0.15s;
+    }
+    .photo-item:hover .photo-delete { opacity: 1; }
+    .photo-item .photo-name {
+      position: absolute; bottom: 0; left: 0; right: 0;
+      padding: 4px 8px; background: rgba(0,0,0,0.6);
+      color: white; font-size: 11px; text-align: center;
+    }
+    .photo-uploading {
+      position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(255,255,255,0.8); display: flex;
+      align-items: center; justify-content: center;
+      font-size: 13px; font-weight: 600; color: #059669;
+    }
+    .photo-msg { font-size: 13px; margin-top: 8px; }
   </style>
 </head>
 <body>
@@ -180,12 +254,31 @@ export const prerender = false;
         <h2 id="modalTitle">-</h2>
         <button class="btn btn-gray" id="modalClose" style="padding:6px 12px;">닫기</button>
       </div>
-      <div class="modal-body">
-        <textarea id="jsonEditor" spellcheck="false"></textarea>
-        <div class="msg msg-success" id="saveSuccess">저장 완료!</div>
-        <div class="msg msg-error" id="saveError"></div>
+      <div class="modal-tabs">
+        <button class="modal-tab active" data-tab="json">데이터 편집</button>
+        <button class="modal-tab" data-tab="photos">사진 관리 <span class="tab-count" id="photoCount">0</span></button>
       </div>
-      <div class="modal-footer">
+      <div class="modal-body">
+        <!-- 데이터 편집 탭 -->
+        <div class="tab-panel active" id="tabJson">
+          <textarea id="jsonEditor" spellcheck="false"></textarea>
+          <div class="msg msg-success" id="saveSuccess">저장 완료!</div>
+          <div class="msg msg-error" id="saveError"></div>
+        </div>
+        <!-- 사진 관리 탭 -->
+        <div class="tab-panel" id="tabPhotos">
+          <div class="photo-drop" id="photoDrop">
+            <div class="photo-drop-icon">📸</div>
+            <div class="photo-drop-text">사진을 드래그하거나 클릭하여 업로드</div>
+            <div class="photo-drop-sub">JPG, PNG, WebP — 자동으로 WebP 변환 (최대 10장)</div>
+          </div>
+          <input type="file" id="photoFileInput" accept="image/*" multiple style="display:none;" />
+          <div class="msg msg-success photo-msg" id="photoSuccess"></div>
+          <div class="msg msg-error photo-msg" id="photoError"></div>
+          <div class="photo-grid" id="photoGrid"></div>
+        </div>
+      </div>
+      <div class="modal-footer" id="jsonFooter">
         <button class="btn btn-gray" id="formatBtn">JSON 정렬</button>
         <button class="btn btn-primary" id="saveJsonBtn">GitHub에 저장</button>
       </div>
@@ -314,6 +407,27 @@ export const prerender = false;
     document.getElementById('districtFilter').addEventListener('change', applyFilters);
     document.getElementById('typeFilter').addEventListener('change', applyFilters);
 
+    // ─── 모달 탭 전환 ───
+    document.querySelector('.modal-tabs').addEventListener('click', (e) => {
+      const tab = e.target.closest('.modal-tab');
+      if (!tab) return;
+      const tabName = tab.dataset.tab;
+
+      document.querySelectorAll('.modal-tab').forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+
+      document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+      document.getElementById(tabName === 'json' ? 'tabJson' : 'tabPhotos').classList.add('active');
+
+      // 풋터 표시/숨기기 (사진 탭에선 풋터 숨김)
+      document.getElementById('jsonFooter').style.display = tabName === 'json' ? 'flex' : 'none';
+
+      // 사진 탭 열면 이미지 로드
+      if (tabName === 'photos' && currentEditingParking) {
+        loadPhotos();
+      }
+    });
+
     // 편집 모달 열기
     async function openEditor(district, parking, originalIndex) {
       currentEditingParking = { district, parking, originalIndex };
@@ -323,6 +437,19 @@ export const prerender = false;
       document.getElementById('jsonEditor').value = '불러오는 중...';
       document.getElementById('saveSuccess').style.display = 'none';
       document.getElementById('saveError').style.display = 'none';
+      document.getElementById('photoSuccess').style.display = 'none';
+      document.getElementById('photoError').style.display = 'none';
+
+      // 탭 초기화 (항상 데이터 편집 탭으로)
+      document.querySelectorAll('.modal-tab').forEach(t => t.classList.remove('active'));
+      document.querySelector('.modal-tab[data-tab="json"]').classList.add('active');
+      document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+      document.getElementById('tabJson').classList.add('active');
+      document.getElementById('jsonFooter').style.display = 'flex';
+
+      // 사진 개수 표시
+      const imgCount = (parking.images || []).length;
+      document.getElementById('photoCount').textContent = imgCount;
 
       // 개별 주차장 JSON 표시
       try {
@@ -343,6 +470,234 @@ export const prerender = false;
         document.getElementById('modalOverlay').style.display = 'none';
       }
     });
+
+    // ─── 사진 관리 ───
+    let currentPhotos = []; // { name, path, sha, url }
+
+    async function loadPhotos() {
+      const grid = document.getElementById('photoGrid');
+      grid.innerHTML = '<div style="text-align:center;padding:20px;color:#888;">불러오는 중...</div>';
+
+      const { district, parking } = currentEditingParking;
+      const slug = parking.slug;
+
+      if (!slug) {
+        grid.innerHTML = '<div style="text-align:center;padding:20px;color:#dc2626;">이 주차장에 slug가 없습니다. JSON에서 slug를 먼저 설정하세요.</div>';
+        return;
+      }
+
+      try {
+        const res = await fetch(`/api/admin/parking-images/?district=${encodeURIComponent(district)}&slug=${encodeURIComponent(slug)}`);
+        const data = await res.json();
+        currentPhotos = data.images || [];
+        document.getElementById('photoCount').textContent = currentPhotos.length;
+        renderPhotos();
+      } catch (e) {
+        grid.innerHTML = `<div style="text-align:center;padding:20px;color:#dc2626;">로딩 실패: ${e.message}</div>`;
+      }
+    }
+
+    function renderPhotos() {
+      const grid = document.getElementById('photoGrid');
+
+      if (currentPhotos.length === 0) {
+        grid.innerHTML = '<div style="text-align:center;padding:30px;color:#9ca3af;font-size:14px;">등록된 사진이 없습니다.</div>';
+        return;
+      }
+
+      grid.innerHTML = currentPhotos.map((photo, i) => `
+        <div class="photo-item" data-index="${i}">
+          <img src="${photo.url}" alt="${photo.name}" loading="lazy" />
+          <button class="photo-delete" onclick="deletePhoto(${i})" title="삭제">×</button>
+          <div class="photo-name">${photo.name}</div>
+        </div>
+      `).join('');
+    }
+
+    // 드래그 앤 드롭
+    const dropZone = document.getElementById('photoDrop');
+    const fileInput = document.getElementById('photoFileInput');
+
+    dropZone.addEventListener('click', () => fileInput.click());
+
+    dropZone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      dropZone.classList.add('dragover');
+    });
+
+    dropZone.addEventListener('dragleave', () => {
+      dropZone.classList.remove('dragover');
+    });
+
+    dropZone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dropZone.classList.remove('dragover');
+      handleFiles(e.dataTransfer.files);
+    });
+
+    fileInput.addEventListener('change', (e) => {
+      handleFiles(e.target.files);
+      fileInput.value = '';
+    });
+
+    async function handleFiles(files) {
+      if (!currentEditingParking) return;
+
+      const { district, parking, originalIndex } = currentEditingParking;
+      const slug = parking.slug;
+
+      if (!slug) {
+        showPhotoError('이 주차장에 slug가 없습니다. JSON에서 slug를 먼저 설정하세요.');
+        return;
+      }
+
+      const maxPhotos = 10;
+      const remaining = maxPhotos - currentPhotos.length;
+      const filesToProcess = Array.from(files).slice(0, remaining);
+
+      if (filesToProcess.length === 0) {
+        showPhotoError('최대 10장까지 업로드할 수 있습니다.');
+        return;
+      }
+
+      showPhotoSuccess(`${filesToProcess.length}장 업로드 중...`);
+
+      for (const file of filesToProcess) {
+        try {
+          // 1. WebP로 변환
+          const base64 = await convertToWebP(file);
+
+          // 2. 파일명 생성 (01.webp ~ 10.webp)
+          const nextNum = getNextFileName();
+          const fileName = nextNum + '.webp';
+
+          // 3. 업로드
+          const res = await fetch('/api/admin/parking-images/', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              district,
+              slug,
+              fileName,
+              base64Data: base64,
+              originalIndex,
+            }),
+          });
+
+          const result = await res.json();
+          if (!res.ok) throw new Error(result.error);
+
+          showPhotoSuccess(`${fileName} 업로드 완료!`);
+        } catch (e) {
+          showPhotoError(`업로드 실패: ${e.message}`);
+        }
+      }
+
+      // 업로드 후 새로고침
+      await loadPhotos();
+      showPhotoSuccess('모든 사진 업로드 완료!');
+    }
+
+    function getNextFileName() {
+      const existingNums = currentPhotos
+        .map(p => parseInt(p.name.replace('.webp', ''), 10))
+        .filter(n => !isNaN(n));
+
+      let next = 1;
+      while (existingNums.includes(next)) next++;
+      return String(next).padStart(2, '0');
+    }
+
+    // Canvas API로 WebP 변환
+    function convertToWebP(file) {
+      return new Promise((resolve, reject) => {
+        const img = new Image();
+        const reader = new FileReader();
+
+        reader.onload = (e) => {
+          img.onload = () => {
+            const canvas = document.createElement('canvas');
+            // 최대 1200px 리사이즈
+            const maxSize = 1200;
+            let w = img.width;
+            let h = img.height;
+
+            if (w > maxSize || h > maxSize) {
+              if (w > h) {
+                h = Math.round(h * maxSize / w);
+                w = maxSize;
+              } else {
+                w = Math.round(w * maxSize / h);
+                h = maxSize;
+              }
+            }
+
+            canvas.width = w;
+            canvas.height = h;
+
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, w, h);
+
+            // WebP로 변환 (품질 80%)
+            const dataUrl = canvas.toDataURL('image/webp', 0.8);
+            // data:image/webp;base64, 부분 제거
+            const base64 = dataUrl.split(',')[1];
+            resolve(base64);
+          };
+
+          img.onerror = () => reject(new Error('이미지 로드 실패'));
+          img.src = e.target.result;
+        };
+
+        reader.onerror = () => reject(new Error('파일 읽기 실패'));
+        reader.readAsDataURL(file);
+      });
+    }
+
+    // 사진 삭제
+    async function deletePhoto(index) {
+      const photo = currentPhotos[index];
+      if (!photo) return;
+      if (!confirm(`"${photo.name}" 사진을 삭제하시겠습니까?`)) return;
+
+      const { district, parking, originalIndex } = currentEditingParking;
+
+      try {
+        const res = await fetch('/api/admin/parking-images/', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            district,
+            slug: parking.slug,
+            fileName: photo.name,
+            sha: photo.sha,
+            originalIndex,
+          }),
+        });
+
+        const result = await res.json();
+        if (!res.ok) throw new Error(result.error);
+
+        showPhotoSuccess(`${photo.name} 삭제 완료!`);
+        await loadPhotos();
+      } catch (e) {
+        showPhotoError(`삭제 실패: ${e.message}`);
+      }
+    }
+
+    function showPhotoSuccess(msg) {
+      const el = document.getElementById('photoSuccess');
+      el.textContent = msg;
+      el.style.display = 'block';
+      document.getElementById('photoError').style.display = 'none';
+    }
+
+    function showPhotoError(msg) {
+      const el = document.getElementById('photoError');
+      el.textContent = msg;
+      el.style.display = 'block';
+      document.getElementById('photoSuccess').style.display = 'none';
+    }
 
     // JSON 정렬
     document.getElementById('formatBtn').addEventListener('click', () => {

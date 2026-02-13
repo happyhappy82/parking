@@ -84,8 +84,9 @@ export const GET: APIRoute = async ({ url }) => {
   const slug = url.searchParams.get('slug');
   const type = url.searchParams.get('type');
 
-  try {
-    if (slug) {
+  // 개별 조회는 별도 try-catch
+  if (slug) {
+    try {
       // 레거시 (.astro) 개별 조회
       if (type === 'legacy') {
         const { content } = await getFile(`${LEGACY_PATH}/${slug}.astro`);
@@ -110,8 +111,12 @@ export const GET: APIRoute = async ({ url }) => {
         parkingSlug: meta.parkingSlug || '',
         content: body.trim(),
       });
+    } catch (e: any) {
+      return json({ error: e.message || '파일을 불러올 수 없습니다.' }, 500);
     }
+  }
 
+  try {
     // 목록 조회
     const mdPosts: any[] = [];
 

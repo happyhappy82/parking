@@ -110,6 +110,35 @@ export async function listFiles(path: string): Promise<GitHubListItem[]> {
   }));
 }
 
+/** 바이너리 파일 저장 (이미 base64 인코딩된 데이터) */
+export async function saveBinaryFile(
+  path: string,
+  base64Content: string,
+  message: string,
+  sha?: string
+): Promise<void> {
+  const body: Record<string, string> = {
+    message,
+    content: base64Content,
+    branch: GITHUB_BRANCH,
+  };
+
+  if (sha) {
+    body.sha = sha;
+  }
+
+  const res = await fetch(`${API_BASE}/contents/${path}`, {
+    method: 'PUT',
+    headers: headers(),
+    body: JSON.stringify(body),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(`GitHub 저장 실패: ${res.status} - ${(err as any).message || ''}`);
+  }
+}
+
 function encodeBase64(str: string): string {
   return btoa(unescape(encodeURIComponent(str)));
 }
