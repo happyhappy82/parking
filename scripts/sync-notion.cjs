@@ -687,6 +687,12 @@ async function syncAll() {
     const result = await pageToContent(page, pageMap);
     if (!result) continue;
 
+    // 주차장 카테고리는 Notion sync 대상 아님 (어드민에서 직접 관리)
+    if (result.category === '주차장') {
+      console.log(`  [SKIP] 주차장 카테고리 — Notion sync 대상 아님`);
+      continue;
+    }
+
     const contentDir = getContentDir(result.category);
     const existingFiles = result.category === '주차장' ? existingParkingFiles : existingBlogFiles;
     const syncedSlugs = result.category === '주차장' ? syncedParkingSlugs : syncedBlogSlugs;
@@ -730,12 +736,12 @@ async function syncAll() {
     syncedSlugs.add(result.slug);
   }
 
-  // Notion에서 삭제/비공개된 글 제거 (매핑 기반)
+  // Notion에서 삭제/비공개된 글 제거 (블로그만 — 주차장은 sync 대상 아님)
   for (const [pid, mapping] of Object.entries(pageMap)) {
     const { slug, category } = mapping;
-    const syncedSlugs = category === '주차장' ? syncedParkingSlugs : syncedBlogSlugs;
+    if (category === '주차장') continue; // 주차장은 건드리지 않음
 
-    if (!syncedSlugs.has(slug)) {
+    if (!syncedBlogSlugs.has(slug)) {
       const contentDir = getContentDir(category);
       deleteContent(contentDir, slug);
       delete pageMap[pid];
@@ -808,6 +814,12 @@ async function syncSinglePage(pageId, action) {
   const result = await pageToContent(page, pageMap);
   if (!result) {
     console.log('Could not convert page — skipping');
+    return;
+  }
+
+  // 주차장 카테고리는 Notion sync 대상 아님 (어드민에서 직접 관리)
+  if (result.category === '주차장') {
+    console.log(`[SKIP] 주차장 카테고리 — Notion sync 대상 아님`);
     return;
   }
 
