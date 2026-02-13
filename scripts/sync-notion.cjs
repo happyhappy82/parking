@@ -229,10 +229,19 @@ async function syncAll() {
 
   ensureDir(BLOG_DIR);
 
-  // 기존 파일 목록 (삭제 감지용)
-  const existingFiles = new Set(
-    fs.readdirSync(BLOG_DIR).filter((f) => f.endsWith('.md')).map((f) => f.replace('.md', ''))
-  );
+  // 기존 파일 목록 (삭제 감지용, 하위 디렉토리 포함)
+  const existingFiles = new Set();
+  function collectMdFiles(dir, prefix = '') {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      if (entry.isDirectory()) {
+        collectMdFiles(path.join(dir, entry.name), prefix ? `${prefix}/${entry.name}` : entry.name);
+      } else if (entry.name.endsWith('.md')) {
+        const slug = prefix ? `${prefix}/${entry.name.replace('.md', '')}` : entry.name.replace('.md', '');
+        existingFiles.add(slug);
+      }
+    }
+  }
+  collectMdFiles(BLOG_DIR);
 
   // page_id 매핑 로드
   const pageMap = loadPageMap();
@@ -261,6 +270,10 @@ async function syncAll() {
     }
 
     if (shouldWrite) {
+      const dir = path.dirname(filePath);
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+      }
       fs.writeFileSync(filePath, result.content, 'utf-8');
       console.log(`  [${isNew ? 'NEW' : 'UPDATE'}] ${result.slug}.md`);
     }
@@ -391,6 +404,10 @@ async function syncSinglePage(pageId, action) {
   const filePath = path.join(BLOG_DIR, `${result.slug}.md`);
   const isNew = !fs.existsSync(filePath);
 
+  const dir = path.dirname(filePath);
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
   fs.writeFileSync(filePath, result.content, 'utf-8');
   console.log(`[${isNew ? 'NEW' : 'UPDATE'}] ${result.slug}.md`);
 
