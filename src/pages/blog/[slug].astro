@@ -71,7 +71,7 @@ const articleSchema = {
       <p class="text-gray-500 mt-3">{post.data.description}</p>
     </header>
 
-    <div class="prose prose-gray prose-lg max-w-none prose-img:shadow-md prose-table:shadow-sm">
+    <div class="prose prose-gray prose-lg max-w-none prose-img:shadow-md">
       <Content />
     </div>
 
@@ -90,14 +90,4 @@ const articleSchema = {
       <a href="/blog/" class="text-sm text-gray-500 hover:text-emerald-700 transition-colors">다른 글 보러가기 &rarr;</a>
     </div>
   </article>
-
-  <script>
-    document.querySelectorAll('.prose table').forEach(table => {
-      if (table.parentElement?.classList.contains('table-wrapper')) return;
-      const wrapper = document.createElement('div');
-      wrapper.className = 'table-wrapper';
-      table.parentNode?.insertBefore(wrapper, table);
-      wrapper.appendChild(table);
-    });
-  </script>
 </BaseLayout>
