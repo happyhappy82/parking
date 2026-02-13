@@ -11,9 +11,16 @@ body {
    ═══════════════════════════════════════════════ */
 
 /* ── 테이블 ── */
-.prose table {
-  display: block;
+.prose .table-wrapper {
   overflow-x: auto;
+  margin: 1em 0;
+}
+
+.prose table {
+  display: table;
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
   border: 1px solid #e5e7eb;
   border-radius: 0.5rem;
 }
