@@ -50,10 +50,13 @@ export const prerender = false;
     tbody tr:hover{background:#e8f0fe}
     tbody tr:last-child td{border-bottom:none}
     .badge{display:inline-block;padding:2px 8px;border-radius:5px;font-size:10px;font-weight:700;letter-spacing:.02em}
-    .badge-공영{background:#ecfdf5;color:#059669}
-    .badge-민영{background:#dbeafe;color:#2563eb}
+    .badge-노상{background:#ecfdf5;color:#059669}
+    .badge-노외{background:#dbeafe;color:#2563eb}
+    .badge-부설{background:#fef3c7;color:#d97706}
+    .badge-공영{background:#f3e8ff;color:#7c3aed}
     .parking-name{font-weight:600;color:#0f172a}
     .parking-addr{font-size:11px;color:#94a3b8;margin-top:2px;max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .has-editorial{display:inline-block;width:8px;height:8px;background:#10b981;border-radius:50%;margin-left:6px;vertical-align:middle}
     .loading{text-align:center;padding:60px;color:#94a3b8;font-size:14px}
     .empty{text-align:center;padding:60px;color:#94a3b8;font-size:14px}
     .btn{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;transition:all .15s;text-decoration:none;white-space:nowrap}
@@ -99,9 +102,10 @@ export const prerender = false;
     .form-group label{display:block;font-size:11px;font-weight:600;color:#64748b;margin-bottom:4px;letter-spacing:.02em}
     .form-group input,.form-group textarea,.form-group select{width:100%;padding:8px 10px;border:1px solid #e2e8f0;border-radius:7px;font-size:13px;color:#1e293b;outline:none;font-family:inherit;transition:all .15s;background:white}
     .form-group input:focus,.form-group textarea:focus,.form-group select:focus{border-color:#10b981;box-shadow:0 0 0 3px rgba(16,185,129,.08)}
-    .form-group input[readonly]{background:#f8fafc;color:#94a3b8;cursor:not-allowed}
-    .form-group textarea{min-height:100px;resize:vertical;font-family:'SF Mono','Fira Code',monospace;font-size:12px;line-height:1.5}
+    .form-group input[readonly]{background:#f8fafc;color:#64748b;cursor:not-allowed;border-color:#f1f5f9}
+    .form-group textarea{min-height:120px;resize:vertical;line-height:1.6}
     .form-group select{cursor:pointer}
+    .readonly-hint{font-size:10px;color:#94a3b8;margin-top:2px;font-style:italic}
     .msg{padding:10px 14px;border-radius:8px;font-size:13px;margin-top:10px;display:none}
     .msg-success{background:#ecfdf5;color:#065f46;border:1px solid #a7f3d0}
     .msg-error{background:#fef2f2;color:#991b1b;border:1px solid #fecaca}
@@ -152,9 +156,10 @@ export const prerender = false;
         <option value="">전체 구</option>
       </select>
       <select id="typeFilter">
-        <option value="">전체 유형</option>
-        <option value="공영">공영</option>
-        <option value="민영">민영</option>
+        <option value="">전체 분류</option>
+        <option value="노상">노상</option>
+        <option value="노외">노외</option>
+        <option value="부설">부설</option>
       </select>
     </div>
 
@@ -166,9 +171,9 @@ export const prerender = false;
           <tr>
             <th>구</th>
             <th>주차장</th>
-            <th>유형</th>
-            <th style="text-align:right;">주차면수</th>
-            <th style="width:130px;">관리</th>
+            <th>분류</th>
+            <th>소재지</th>
+            <th style="width:100px;">관리</th>
           </tr>
         </thead>
         <tbody id="parkingTableBody"></tbody>
@@ -194,156 +199,75 @@ export const prerender = false;
         <!-- 데이터 편집 탭 (폼) -->
         <div class="tab-panel active" id="tabForm">
           <div class="form-section">
-            <div class="form-section-title"><span>📌</span> 기본 정보</div>
-            <div class="form-group">
-              <label>주차장 이름</label>
-              <input type="text" id="f_name" />
+            <div class="form-section-title"><span>📌</span> 공단주소 원본 데이터 (읽기 전용)</div>
+            <p class="readonly-hint">아래 데이터는 공단 홈페이지에서 수집한 원본입니다. 수정이 필요하면 공단주소 JSON을 직접 편집하세요.</p>
+            <div class="form-group" style="margin-top:10px">
+              <label>주차장명</label>
+              <input type="text" id="f_name" readonly />
             </div>
             <div class="form-row-3">
-              <div class="form-group">
-                <label>유형</label>
-                <select id="f_type"><option value="공영">공영</option><option value="민영">민영</option></select>
-              </div>
               <div class="form-group">
                 <label>분류</label>
-                <select id="f_category"><option value="노상">노상</option><option value="노외">노외</option><option value="부설">부설</option></select>
+                <input type="text" id="f_category" readonly />
               </div>
               <div class="form-group">
-                <label>총 주차면수</label>
-                <input type="number" id="f_totalSpaces" min="0" />
+                <label>구획수</label>
+                <input type="text" id="f_spaces" readonly />
               </div>
+              <div class="form-group">
+                <label>급지</label>
+                <input type="text" id="f_grade" readonly />
+              </div>
+            </div>
+            <div class="form-group">
+              <label>소재지</label>
+              <input type="text" id="f_address" readonly />
             </div>
             <div class="form-row">
               <div class="form-group">
-                <label>전화번호</label>
-                <input type="text" id="f_phone" placeholder="02-000-0000" />
+                <label>면적</label>
+                <input type="text" id="f_area" readonly />
               </div>
               <div class="form-group">
-                <label>슬러그 (URL 경로)</label>
-                <input type="text" id="f_slug" placeholder="parking-slug" />
+                <label>인수일</label>
+                <input type="text" id="f_transferDate" readonly />
               </div>
             </div>
           </div>
 
           <div class="form-section">
-            <div class="form-section-title"><span>📍</span> 위치 정보</div>
-            <div class="form-group">
-              <label>지번 주소</label>
-              <input type="text" id="f_address" />
-            </div>
-            <div class="form-group">
-              <label>도로명 주소</label>
-              <input type="text" id="f_roadAddress" />
-            </div>
-            <div class="form-row-3">
+            <div class="form-section-title"><span>💰</span> 요금 정보 (읽기 전용)</div>
+            <div class="form-row">
               <div class="form-group">
-                <label>시/도</label>
-                <input type="text" id="f_sido" readonly />
+                <label>운영시간</label>
+                <input type="text" id="f_operatingHours" readonly />
               </div>
               <div class="form-group">
-                <label>시/군/구</label>
-                <input type="text" id="f_sigungu" readonly />
-              </div>
-              <div class="form-group">
-                <label>읍/면/동</label>
-                <input type="text" id="f_dong" />
+                <label>시간제 요금</label>
+                <input type="text" id="f_hourlyFee" readonly />
               </div>
             </div>
             <div class="form-row">
               <div class="form-group">
-                <label>위도 (lat)</label>
-                <input type="text" id="f_lat" />
+                <label>월정기권</label>
+                <input type="text" id="f_monthlyPass" readonly />
               </div>
               <div class="form-group">
-                <label>경도 (lng)</label>
-                <input type="text" id="f_lng" />
+                <label>비고</label>
+                <input type="text" id="f_feeNote" readonly />
               </div>
             </div>
           </div>
 
           <div class="form-section">
-            <div class="form-section-title"><span>🕐</span> 운영 시간</div>
-            <div class="form-group">
-              <label>운영 요일</label>
-              <input type="text" id="f_operatingDays" placeholder="평일+토요일+공휴일" />
-            </div>
-            <div class="form-row">
-              <div class="form-group">
-                <label>평일 시작</label>
-                <input type="text" id="f_weekdayOpen" placeholder="09:00" />
-              </div>
-              <div class="form-group">
-                <label>평일 종료</label>
-                <input type="text" id="f_weekdayClose" placeholder="18:00" />
-              </div>
-            </div>
-            <div class="form-row">
-              <div class="form-group">
-                <label>주말 시작</label>
-                <input type="text" id="f_weekendOpen" placeholder="09:00" />
-              </div>
-              <div class="form-group">
-                <label>주말 종료</label>
-                <input type="text" id="f_weekendClose" placeholder="18:00" />
-              </div>
-            </div>
-            <div class="form-row">
-              <div class="form-group">
-                <label>공휴일 시작</label>
-                <input type="text" id="f_holidayOpen" placeholder="09:00" />
-              </div>
-              <div class="form-group">
-                <label>공휴일 종료</label>
-                <input type="text" id="f_holidayClose" placeholder="18:00" />
-              </div>
-            </div>
-          </div>
-
-          <div class="form-section">
-            <div class="form-section-title"><span>💰</span> 요금 정보</div>
-            <div class="form-row-3">
-              <div class="form-group">
-                <label>무료 여부</label>
-                <select id="f_isFree"><option value="N">유료 (N)</option><option value="Y">무료 (Y)</option></select>
-              </div>
-              <div class="form-group">
-                <label>기본 시간 (분)</label>
-                <input type="text" id="f_basicTime" placeholder="30" />
-              </div>
-              <div class="form-group">
-                <label>기본 요금 (원)</label>
-                <input type="text" id="f_basicCharge" placeholder="1000" />
-              </div>
-            </div>
-            <div class="form-row-3">
-              <div class="form-group">
-                <label>추가 단위 (분)</label>
-                <input type="text" id="f_addUnitTime" placeholder="10" />
-              </div>
-              <div class="form-group">
-                <label>추가 요금 (원)</label>
-                <input type="text" id="f_addUnitCharge" placeholder="500" />
-              </div>
-              <div class="form-group">
-                <label>월 정기권 (원)</label>
-                <input type="text" id="f_monthlyPass" placeholder="100000" />
-              </div>
-            </div>
-            <div class="form-group">
-              <label>요금 안내</label>
-              <input type="text" id="f_feeInfo" placeholder="요금 관련 안내 사항" />
-            </div>
-          </div>
-
-          <div class="form-section">
-            <div class="form-section-title"><span>📝</span> 에디터 메모</div>
+            <div class="form-section-title"><span>📝</span> 에디토리얼 (편집 가능)</div>
             <div class="form-group">
               <label>에디터의 의견</label>
               <textarea id="f_editorOpinion" placeholder="현장 방문 후 느낀 점, 팁, 특이사항 등을 자유롭게 작성하세요..."></textarea>
             </div>
             <div class="form-group">
               <label>최종 수정일</label>
-              <input type="text" id="f_updatedAt" placeholder="2025-01-01" />
+              <input type="text" id="f_updatedAt" readonly />
             </div>
           </div>
 
@@ -366,7 +290,7 @@ export const prerender = false;
       </div>
       <div class="modal-footer" id="formFooter">
         <button class="btn btn-gray" id="modalCloseFooter">취소</button>
-        <button class="btn btn-primary" id="saveFormBtn">GitHub에 저장</button>
+        <button class="btn btn-primary" id="saveFormBtn">노션에 저장</button>
       </div>
     </div>
   </div>
@@ -380,42 +304,140 @@ export const prerender = false;
       '용산구','은평구','종로구','중구','중랑구',
     ];
 
-    // 폼 필드 매핑
-    const FORM_FIELDS = [
-      'name','type','category','totalSpaces','phone','slug',
-      'address','roadAddress','sido','sigungu','dong','lat','lng',
-      'operatingDays','weekdayOpen','weekdayClose','weekendOpen','weekendClose','holidayOpen','holidayClose',
-      'isFree','basicTime','basicCharge','addUnitTime','addUnitCharge','monthlyPass','feeInfo',
-      'editorOpinion','updatedAt'
-    ];
-
     let allParkingLots = [];
     let filteredParkingLots = [];
     let currentEditingParking = null;
+    // 구별 원본 공단주소 JSON 캐시 (district → { data, sha })
+    let gongdanCache = {};
+    // 구별 노션 에디토리얼 캐시 (district → { 주차장명: editorial })
+    let editorialCache = {};
+
+    // ─── 공단주소 JSON에서 주차장 목록 추출 ───
+    function extractLotsFromGongdan(data) {
+      const lots = [];
+      const sources = [];
+      // 노상주차장
+      if (data.노상주차장 && data.노상주차장.주차장목록 && Array.isArray(data.노상주차장.주차장목록))
+        sources.push({ list: data.노상주차장.주차장목록, cat: '노상', path: ['노상주차장','주차장목록'] });
+      else if (Array.isArray(data.노상주차장))
+        sources.push({ list: data.노상주차장, cat: '노상', path: ['노상주차장'] });
+      // 노외주차장
+      if (data.노외주차장 && data.노외주차장.주차장목록 && Array.isArray(data.노외주차장.주차장목록))
+        sources.push({ list: data.노외주차장.주차장목록, cat: '노외', path: ['노외주차장','주차장목록'] });
+      else if (Array.isArray(data.노외주차장))
+        sources.push({ list: data.노외주차장, cat: '노외', path: ['노외주차장'] });
+      // 부설주차장
+      if (data.부설주차장 && data.부설주차장.주차장목록 && Array.isArray(data.부설주차장.주차장목록))
+        sources.push({ list: data.부설주차장.주차장목록, cat: '부설', path: ['부설주차장','주차장목록'] });
+      else if (Array.isArray(data.부설주차장))
+        sources.push({ list: data.부설주차장, cat: '부설', path: ['부설주차장'] });
+      // 공영주차장 래퍼 (강남구 등)
+      const gp = data.공영주차장;
+      if (gp) {
+        if (gp.노외주차장 && gp.노외주차장.주차장목록 && Array.isArray(gp.노외주차장.주차장목록))
+          sources.push({ list: gp.노외주차장.주차장목록, cat: '노외', path: ['공영주차장','노외주차장','주차장목록'] });
+        if (gp.노상주차장 && gp.노상주차장.주차장목록 && Array.isArray(gp.노상주차장.주차장목록))
+          sources.push({ list: gp.노상주차장.주차장목록, cat: '노상', path: ['공영주차장','노상주차장','주차장목록'] });
+        if (Array.isArray(gp.부설주차장))
+          sources.push({ list: gp.부설주차장, cat: '부설', path: ['공영주차장','부설주차장'] });
+        if (gp.주차장목록) {
+          var ml = gp.주차장목록;
+          if (Array.isArray(ml.노외주차장))
+            sources.push({ list: ml.노외주차장, cat: '노외', path: ['공영주차장','주차장목록','노외주차장'] });
+          if (Array.isArray(ml.노상주차장))
+            sources.push({ list: ml.노상주차장, cat: '노상', path: ['공영주차장','주차장목록','노상주차장'] });
+          if (Array.isArray(ml))
+            sources.push({ list: ml, cat: '공영', path: ['공영주차장','주차장목록'] });
+        }
+      }
+      for (var s = 0; s < sources.length; s++) {
+        var src = sources[s];
+        for (var i = 0; i < src.list.length; i++) {
+          var lot = src.list[i];
+          if (typeof lot === 'object' && (lot.주차장명 || lot.시설명)) {
+            lots.push({ lot: lot, category: src.cat, path: src.path, index: i });
+          }
+        }
+      }
+      return lots;
+    }
+
+    // ─── 요금정보 매칭 ───
+    function findFeeInfo(data, lotName, category) {
+      var norm = lotName.replace(/\s+/g, '').replace(/(공영주차장|노상주차장|부설주차장|주차장|공영)$/g, '').trim();
+      var feeSources = [];
+      if (data.노상주차장 && data.노상주차장.요금정보) feeSources.push(data.노상주차장.요금정보);
+      if (data.노외주차장 && data.노외주차장.요금정보) feeSources.push(data.노외주차장.요금정보);
+      if (data.공영주차장) {
+        if (data.공영주차장.노외주차장 && data.공영주차장.노외주차장.요금정보) feeSources.push(data.공영주차장.노외주차장.요금정보);
+        if (data.공영주차장.노상주차장 && data.공영주차장.노상주차장.요금정보) feeSources.push(data.공영주차장.노상주차장.요금정보);
+      }
+      for (var i = 0; i < feeSources.length; i++) {
+        var fees = feeSources[i];
+        if (!Array.isArray(fees)) continue;
+        for (var j = 0; j < fees.length; j++) {
+          var f = fees[j];
+          var fNorm = (f.주차장명 || '').replace(/\s+/g, '').replace(/(공영주차장|노상주차장|부설주차장|주차장|공영)$/g, '').trim();
+          if (fNorm === norm) return f;
+        }
+      }
+      return null;
+    }
 
     // ─── 데이터 로딩 ───
     async function loadAllParkingData() {
       try {
-        const promises = districts.map(d =>
-          fetch('/data/parking/서울특별시/' + d + '.json')
-            .then(res => res.json())
-            .then(data => ({ district: d, items: data.items || [] }))
-        );
-        const results = await Promise.all(promises);
+        var promises = districts.map(function(d) {
+          return fetch('/api/admin/parking/?district=' + encodeURIComponent(d))
+            .then(function(res) { return res.json(); })
+            .then(function(result) {
+              if (result.error) return { district: d, data: null, sha: null };
+              var parsed = JSON.parse(result.content);
+              gongdanCache[d] = { data: parsed, sha: result.sha };
+              return { district: d, data: parsed, sha: result.sha };
+            })
+            .catch(function() { return { district: d, data: null, sha: null }; });
+        });
+        var results = await Promise.all(promises);
+
+        // 에디토리얼 병렬 로드 (노션)
+        var editorialPromises = districts.map(function(d) {
+          return fetch('/api/admin/parking/?action=editorial&district=' + encodeURIComponent(d))
+            .then(function(res) { return res.json(); })
+            .then(function(result) {
+              if (result.editorials) {
+                var map = {};
+                result.editorials.forEach(function(ed) { map[ed.parkingName] = ed; });
+                editorialCache[d] = map;
+              }
+              return { district: d };
+            })
+            .catch(function() { return { district: d }; });
+        });
+        await Promise.all(editorialPromises);
 
         allParkingLots = [];
-        results.forEach(({ district, items }) => {
-          items.forEach((parking, idx) => {
-            allParkingLots.push({ district, parking, originalIndex: idx });
+        results.forEach(function(r) {
+          if (!r.data) return;
+          var lots = extractLotsFromGongdan(r.data);
+          lots.forEach(function(entry) {
+            allParkingLots.push({
+              district: r.district,
+              lot: entry.lot,
+              category: entry.category,
+              path: entry.path,
+              index: entry.index,
+              fee: findFeeInfo(r.data, entry.lot.주차장명 || entry.lot.시설명 || '', entry.category),
+            });
           });
         });
 
-        document.getElementById('pageTitle').textContent = '주차장 관리';
+        document.getElementById('pageTitle').textContent = '주차장 관리 (공단주소)';
         document.getElementById('pageSubtitle').textContent = '총 ' + allParkingLots.length + '개 주차장';
 
-        const districtFilter = document.getElementById('districtFilter');
-        districts.forEach(d => {
-          const opt = document.createElement('option');
+        var districtFilter = document.getElementById('districtFilter');
+        districts.forEach(function(d) {
+          var opt = document.createElement('option');
           opt.value = d; opt.textContent = d;
           districtFilter.appendChild(opt);
         });
@@ -428,17 +450,16 @@ export const prerender = false;
 
     // ─── 필터 ───
     function applyFilters() {
-      const search = document.getElementById('searchInput').value.toLowerCase();
-      const dist = document.getElementById('districtFilter').value;
-      const type = document.getElementById('typeFilter').value;
+      var search = document.getElementById('searchInput').value.toLowerCase();
+      var dist = document.getElementById('districtFilter').value;
+      var type = document.getElementById('typeFilter').value;
 
-      filteredParkingLots = allParkingLots.filter(({ district, parking }) => {
-        const matchSearch = !search ||
-          parking.name.toLowerCase().includes(search) ||
-          (parking.address || '').toLowerCase().includes(search) ||
-          (parking.roadAddress || '').toLowerCase().includes(search);
-        const matchDist = !dist || district === dist;
-        const matchType = !type || parking.type === type;
+      filteredParkingLots = allParkingLots.filter(function(entry) {
+        var name = (entry.lot.주차장명 || entry.lot.시설명 || '').toLowerCase();
+        var addr = (entry.lot.소재지 || entry.lot.위치 || entry.lot.주소 || '').toLowerCase();
+        var matchSearch = !search || name.includes(search) || addr.includes(search);
+        var matchDist = !dist || entry.district === dist;
+        var matchType = !type || entry.category === type;
         return matchSearch && matchDist && matchType;
       });
 
@@ -447,10 +468,10 @@ export const prerender = false;
 
     // ─── 테이블 렌더링 ───
     function renderTable() {
-      const loadingEl = document.getElementById('loadingState');
-      const emptyEl = document.getElementById('emptyState');
-      const table = document.getElementById('parkingTable');
-      const tbody = document.getElementById('parkingTableBody');
+      var loadingEl = document.getElementById('loadingState');
+      var emptyEl = document.getElementById('emptyState');
+      var table = document.getElementById('parkingTable');
+      var tbody = document.getElementById('parkingTableBody');
 
       loadingEl.style.display = 'none';
 
@@ -463,25 +484,20 @@ export const prerender = false;
       emptyEl.style.display = 'none';
       table.style.display = 'table';
 
-      tbody.innerHTML = filteredParkingLots.map(({ district, parking, originalIndex }) => {
-        const addr = parking.roadAddress || parking.address || '';
-        const slug = parking.slug;
-        const dong = parking.dong;
-        const sido = parking.sido || '서울특별시';
-        const sigungu = parking.sigungu || district;
+      tbody.innerHTML = filteredParkingLots.map(function(entry, idx) {
+        var lot = entry.lot;
+        var name = lot.주차장명 || lot.시설명 || '(이름없음)';
+        var addr = lot.소재지 || lot.위치 || lot.주소 || '';
+        var edMap = editorialCache[entry.district] || {};
+        var hasEd = edMap[name] && edMap[name].editorOpinion;
+        var edDot = hasEd ? '<span class="has-editorial" title="에디토리얼 있음"></span>' : '';
 
-        let viewBtn = '';
-        if (slug && dong) {
-          const viewUrl = '/' + encodeURIComponent(sido) + '/' + encodeURIComponent(sigungu) + '/' + encodeURIComponent(dong) + '/' + encodeURIComponent(slug) + '/';
-          viewBtn = '<a href="' + viewUrl + '" target="_blank" class="btn btn-view" onclick="event.stopPropagation();">보기 ↗</a>';
-        }
-
-        return '<tr onclick="openEditor(\'' + district + '\',' + originalIndex + ')">' +
-          '<td>' + district + '</td>' +
-          '<td><div class="parking-name">' + parking.name + '</div><div class="parking-addr">' + addr + '</div></td>' +
-          '<td><span class="badge badge-' + parking.type + '">' + parking.type + '</span></td>' +
-          '<td style="text-align:right;">' + (parking.totalSpaces || 0) + '면</td>' +
-          '<td><div class="td-actions"><button class="btn btn-primary" style="padding:4px 10px;font-size:11px;" onclick="event.stopPropagation();openEditor(\'' + district + '\',' + originalIndex + ')">편집</button>' + viewBtn + '</div></td>' +
+        return '<tr onclick="openEditor(' + idx + ')">' +
+          '<td>' + entry.district + '</td>' +
+          '<td><div class="parking-name">' + name + edDot + '</div><div class="parking-addr">' + addr + '</div></td>' +
+          '<td><span class="badge badge-' + entry.category + '">' + entry.category + '</span></td>' +
+          '<td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + addr + '</td>' +
+          '<td><div class="td-actions"><button class="btn btn-primary" style="padding:4px 10px;font-size:11px;" onclick="event.stopPropagation();openEditor(' + idx + ')">편집</button></div></td>' +
         '</tr>';
       }).join('');
     }
@@ -492,15 +508,15 @@ export const prerender = false;
     document.getElementById('typeFilter').addEventListener('change', applyFilters);
 
     // ─── 모달 탭 전환 ───
-    document.querySelector('.modal-tabs').addEventListener('click', (e) => {
-      const tab = e.target.closest('.modal-tab');
+    document.querySelector('.modal-tabs').addEventListener('click', function(e) {
+      var tab = e.target.closest('.modal-tab');
       if (!tab) return;
-      const tabName = tab.dataset.tab;
+      var tabName = tab.dataset.tab;
 
-      document.querySelectorAll('.modal-tab').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.modal-tab').forEach(function(t) { t.classList.remove('active'); });
       tab.classList.add('active');
 
-      document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+      document.querySelectorAll('.tab-panel').forEach(function(p) { p.classList.remove('active'); });
       document.getElementById(tabName === 'form' ? 'tabForm' : 'tabPhotos').classList.add('active');
 
       document.getElementById('formFooter').style.display = tabName === 'form' ? 'flex' : 'none';
@@ -511,15 +527,27 @@ export const prerender = false;
     });
 
     // ─── 모달 열기 ───
-    window.openEditor = function(district, originalIndex) {
-      const lot = allParkingLots.find(p => p.district === district && p.originalIndex === originalIndex);
-      if (!lot) return;
+    window.openEditor = function(filteredIdx) {
+      var entry = filteredParkingLots[filteredIdx];
+      if (!entry) return;
 
-      const parking = lot.parking;
-      currentEditingParking = { district, parking, originalIndex };
+      var lot = entry.lot;
+      var fee = entry.fee;
+      currentEditingParking = {
+        district: entry.district,
+        lot: lot,
+        category: entry.category,
+        path: entry.path,
+        index: entry.index,
+        fee: fee,
+        filteredIdx: filteredIdx,
+      };
 
-      document.getElementById('modalTitle').textContent = parking.name;
-      document.getElementById('modalSubtitle').textContent = district + ' · ' + (parking.roadAddress || parking.address || '');
+      var name = lot.주차장명 || lot.시설명 || '';
+      var addr = lot.소재지 || lot.위치 || lot.주소 || '';
+
+      document.getElementById('modalTitle').textContent = name;
+      document.getElementById('modalSubtitle').textContent = entry.district + ' · ' + entry.category + ' · ' + addr;
       document.getElementById('modalOverlay').style.display = 'block';
       document.getElementById('saveSuccess').style.display = 'none';
       document.getElementById('saveError').style.display = 'none';
@@ -527,28 +555,42 @@ export const prerender = false;
       document.getElementById('photoError').style.display = 'none';
 
       // 탭 초기화
-      document.querySelectorAll('.modal-tab').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.modal-tab').forEach(function(t) { t.classList.remove('active'); });
       document.querySelector('.modal-tab[data-tab="form"]').classList.add('active');
-      document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+      document.querySelectorAll('.tab-panel').forEach(function(p) { p.classList.remove('active'); });
       document.getElementById('tabForm').classList.add('active');
       document.getElementById('formFooter').style.display = 'flex';
 
       // 사진 개수
-      document.getElementById('photoCount').textContent = (parking.images || []).length;
+      document.getElementById('photoCount').textContent = '0';
 
-      // 폼에 데이터 채우기
-      FORM_FIELDS.forEach(key => {
-        const el = document.getElementById('f_' + key);
-        if (!el) return;
-        const val = parking[key];
-        if (el.tagName === 'SELECT') {
-          el.value = val || el.options[0].value;
-        } else if (el.tagName === 'TEXTAREA') {
-          el.value = val || '';
-        } else {
-          el.value = val != null ? val : '';
-        }
-      });
+      // 읽기 전용 필드 채우기
+      document.getElementById('f_name').value = name;
+      document.getElementById('f_category').value = entry.category;
+      document.getElementById('f_spaces').value = lot.구획수 || lot.구획 || lot.면수 || '';
+      document.getElementById('f_grade').value = lot.급지 || '';
+      document.getElementById('f_address').value = addr;
+      document.getElementById('f_area').value = lot.면적 || '';
+      document.getElementById('f_transferDate').value = lot.인수일 || '';
+
+      // 요금 정보
+      if (fee) {
+        document.getElementById('f_operatingHours').value = fee.운영시간 || '';
+        document.getElementById('f_hourlyFee').value = fee.시간제요금 || fee['시간주차(5분당)'] || fee.시간주차요금 || fee.요금_5분당 || '';
+        document.getElementById('f_monthlyPass').value = fee.월정기권 || fee.월정기요금 || fee.월정기_주간 || fee.월정기 || '';
+        document.getElementById('f_feeNote').value = fee.비고 || '';
+      } else {
+        document.getElementById('f_operatingHours').value = '';
+        document.getElementById('f_hourlyFee').value = '';
+        document.getElementById('f_monthlyPass').value = '';
+        document.getElementById('f_feeNote').value = '';
+      }
+
+      // 에디토리얼 필드 (노션에서 로드)
+      var edMap = editorialCache[entry.district] || {};
+      var ed = edMap[name] || {};
+      document.getElementById('f_editorOpinion').value = ed.editorOpinion || '';
+      document.getElementById('f_updatedAt').value = ed.updatedAt || '';
 
       // 스크롤 맨 위로
       document.querySelector('.modal-body').scrollTop = 0;
@@ -560,72 +602,56 @@ export const prerender = false;
     }
     document.getElementById('modalClose').addEventListener('click', closeModal);
     document.getElementById('modalCloseFooter').addEventListener('click', closeModal);
-    document.getElementById('modalOverlay').addEventListener('click', (e) => {
+    document.getElementById('modalOverlay').addEventListener('click', function(e) {
       if (e.target === document.getElementById('modalOverlay')) closeModal();
     });
 
-    // ─── 폼 저장 ───
-    document.getElementById('saveFormBtn').addEventListener('click', async () => {
+    // ─── 폼 저장 (editorial 필드만) ───
+    document.getElementById('saveFormBtn').addEventListener('click', async function() {
       if (!currentEditingParking) return;
 
-      const btn = document.getElementById('saveFormBtn');
-      const okMsg = document.getElementById('saveSuccess');
-      const errMsg = document.getElementById('saveError');
+      var btn = document.getElementById('saveFormBtn');
+      var okMsg = document.getElementById('saveSuccess');
+      var errMsg = document.getElementById('saveError');
       btn.disabled = true; btn.textContent = '저장 중...';
       okMsg.style.display = 'none'; errMsg.style.display = 'none';
 
-      // 폼 값 수집 → 기존 parking 객체에 머지
-      const updated = Object.assign({}, currentEditingParking.parking);
-      FORM_FIELDS.forEach(key => {
-        const el = document.getElementById('f_' + key);
-        if (!el) return;
-        let val = el.value;
-
-        // 숫자 필드 변환
-        if (key === 'totalSpaces' || key === 'lat' || key === 'lng') {
-          const num = Number(val);
-          if (!isNaN(num) && val !== '') { val = num; }
-          else if (val === '') { val = key === 'totalSpaces' ? 0 : updated[key]; }
-        }
-
-        updated[key] = val;
-      });
+      var editorOpinion = document.getElementById('f_editorOpinion').value.trim();
 
       try {
-        const { district, originalIndex } = currentEditingParking;
+        var district = currentEditingParking.district;
+        var name = currentEditingParking.lot.주차장명 || currentEditingParking.lot.시설명 || '';
+        var category = currentEditingParking.category;
 
-        // 1. 최신 district JSON 가져오기
-        const getRes = await fetch('/api/admin/parking/?district=' + encodeURIComponent(district));
-        const getData = await getRes.json();
-        if (!getRes.ok) throw new Error(getData.error || '구 데이터 로딩 실패');
-
-        // 2. 해당 주차장 데이터 교체
-        const districtData = JSON.parse(getData.content);
-        districtData.items[originalIndex] = updated;
-
-        // 3. 저장
-        const saveRes = await fetch('/api/admin/parking/', {
-          method: 'PUT',
+        // 노션에 POST로 저장
+        var saveRes = await fetch('/api/admin/parking/', {
+          method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            district,
-            content: JSON.stringify(districtData, null, 2),
-            sha: getData.sha,
+            parkingName: name,
+            district: district,
+            category: category,
+            editorOpinion: editorOpinion,
           }),
         });
 
-        const saveResult = await saveRes.json();
+        var saveResult = await saveRes.json();
 
         if (saveRes.ok) {
-          okMsg.textContent = '저장 완료! Vercel 자동 배포가 시작됩니다.';
+          okMsg.textContent = '노션에 저장 완료!';
           okMsg.style.display = 'block';
 
-          // 로컬 데이터도 업데이트
-          const idx = allParkingLots.findIndex(p => p.district === district && p.originalIndex === originalIndex);
-          if (idx !== -1) {
-            allParkingLots[idx].parking = updated;
-            currentEditingParking.parking = updated;
-          }
+          // 로컬 에디토리얼 캐시도 업데이트
+          var today = new Date().toISOString().slice(0, 10);
+          if (!editorialCache[district]) editorialCache[district] = {};
+          editorialCache[district][name] = {
+            parkingName: name,
+            district: district,
+            category: category,
+            editorOpinion: editorOpinion,
+            updatedAt: today,
+          };
+          document.getElementById('f_updatedAt').value = today;
           applyFilters();
         } else {
           errMsg.textContent = saveResult.error || '저장 실패';
@@ -635,7 +661,7 @@ export const prerender = false;
         errMsg.textContent = '서버 오류: ' + e.message;
         errMsg.style.display = 'block';
       } finally {
-        btn.disabled = false; btn.textContent = 'GitHub에 저장';
+        btn.disabled = false; btn.textContent = '노션에 저장';
       }
     });
 
@@ -646,11 +672,11 @@ export const prerender = false;
       const grid = document.getElementById('photoGrid');
       grid.innerHTML = '<div style="text-align:center;padding:20px;color:#94a3b8;">불러오는 중...</div>';
 
-      const { district, parking } = currentEditingParking;
-      const slug = parking.slug;
+      const { district, lot } = currentEditingParking;
+      const slug = lot.slug;
 
       if (!slug) {
-        grid.innerHTML = '<div style="text-align:center;padding:20px;color:#dc2626;">이 주차장에 slug가 없습니다. 데이터 편집 탭에서 slug를 먼저 설정하세요.</div>';
+        grid.innerHTML = '<div style="text-align:center;padding:20px;color:#94a3b8;">이 주차장에는 아직 slug가 설정되지 않았습니다.</div>';
         return;
       }
 
@@ -692,10 +718,10 @@ export const prerender = false;
 
     async function handleFiles(files) {
       if (!currentEditingParking) return;
-      const { district, parking, originalIndex } = currentEditingParking;
-      const slug = parking.slug;
+      const { district, lot } = currentEditingParking;
+      const slug = lot.slug;
 
-      if (!slug) { showPhotoError('slug가 없습니다. 데이터 편집 탭에서 설정하세요.'); return; }
+      if (!slug) { showPhotoError('slug가 없습니다.'); return; }
 
       const remaining = 10 - currentPhotos.length;
       const filesToProcess = Array.from(files).slice(0, remaining);
@@ -712,7 +738,7 @@ export const prerender = false;
           const res = await fetch('/api/admin/parking-images/', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ district, slug, fileName, base64Data: base64, originalIndex }),
+            body: JSON.stringify({ district, slug, fileName, base64Data: base64 }),
           });
 
           const result = await res.json();
@@ -760,12 +786,12 @@ export const prerender = false;
     window.deletePhoto = async function(index) {
       const photo = currentPhotos[index];
       if (!photo || !confirm('"' + photo.name + '" 사진을 삭제하시겠습니까?')) return;
-      const { district, parking, originalIndex } = currentEditingParking;
+      const { district, lot } = currentEditingParking;
       try {
         const res = await fetch('/api/admin/parking-images/', {
           method: 'DELETE',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ district, slug: parking.slug, fileName: photo.name, sha: photo.sha, originalIndex }),
+          body: JSON.stringify({ district, slug: lot.slug, fileName: photo.name, sha: photo.sha }),
         });
         const result = await res.json();
         if (!res.ok) throw new Error(result.error);

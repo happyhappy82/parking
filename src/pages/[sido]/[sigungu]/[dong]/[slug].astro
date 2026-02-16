@@ -2,12 +2,21 @@
 import BaseLayout from '../../../../layouts/BaseLayout.astro';
 import Header from '../../../../components/Header.astro';
 import { getCollection } from 'astro:content';
+import { getAllEditorials } from '../../../../utils/notion-editorial';
 import fs from 'node:fs';
 import path from 'node:path';
 
 const naverClientId = import.meta.env.PUBLIC_NAVER_MAP_CLIENT_ID;
 
-export function getStaticPaths() {
+export async function getStaticPaths() {
+  // 노션 에디토리얼 전체 로드
+  let editorialMap = new Map<string, any>();
+  try {
+    const editorials = await getAllEditorials();
+    for (const ed of editorials) {
+      editorialMap.set(`${ed.district}_${ed.parkingName}`, ed);
+    }
+  } catch {}
   function toSlug(name: string): string {
     return name
       .replace(/\s+/g, '-')
@@ -16,70 +25,178 @@ export function getStaticPaths() {
       .replace(/^-|-$/g, '');
   }
 
-  const parkingDir = path.join(process.cwd(), 'content', 'parking');
-  const paths: { params: { sido: string; sigungu: string; dong: string; slug: string }; props: { item: any; allItems: any[]; sigunguItems: any[] } }[] = [];
-
-  if (!fs.existsSync(parkingDir)) {
-    return paths;
+  // 이름 정규화: 공백 제거 + 접미사 제거
+  function normalizeParkingName(name: string): string {
+    return name
+      .replace(/\s+/g, '')
+      .replace(/(공영주차장|노상주차장|부설주차장|주차장|공영)$/g, '')
+      .trim();
   }
 
-  const sidos = fs.readdirSync(parkingDir).filter((f: string) =>
-    fs.statSync(path.join(parkingDir, f)).isDirectory()
-  ).filter((f: string) => f === '서울특별시');
+  // 공단주소에서 모든 주차장목록 추출
+  function extractAllLots(data: any): { lot: any; category: string }[] {
+    const result: { lot: any; category: string }[] = [];
+    const sources: { path: any; cat: string }[] = [];
 
-  for (const sido of sidos) {
-    const sidoDir = path.join(parkingDir, sido);
-    const files = fs.readdirSync(sidoDir).filter((f: string) => f.endsWith('.json'));
+    if (data.노상주차장?.주차장목록 && Array.isArray(data.노상주차장.주차장목록)) {
+      sources.push({ path: data.노상주차장.주차장목록, cat: '노상' });
+    } else if (Array.isArray(data.노상주차장)) {
+      sources.push({ path: data.노상주차장, cat: '노상' });
+    }
+    if (data.노외주차장?.주차장목록 && Array.isArray(data.노외주차장.주차장목록)) {
+      sources.push({ path: data.노외주차장.주차장목록, cat: '노외' });
+    } else if (Array.isArray(data.노외주차장)) {
+      sources.push({ path: data.노외주차장, cat: '노외' });
+    }
+    if (data.부설주차장?.주차장목록 && Array.isArray(data.부설주차장.주차장목록)) {
+      sources.push({ path: data.부설주차장.주차장목록, cat: '부설' });
+    } else if (Array.isArray(data.부설주차장)) {
+      sources.push({ path: data.부설주차장, cat: '부설' });
+    }
+    const gongPark = data.공영주차장;
+    if (gongPark?.주차장목록) {
+      const ml = gongPark.주차장목록;
+      if (Array.isArray(ml.노외주차장)) sources.push({ path: ml.노외주차장, cat: '노외' });
+      if (Array.isArray(ml.노상주차장)) sources.push({ path: ml.노상주차장, cat: '노상' });
+      if (Array.isArray(ml.부설주차장)) sources.push({ path: ml.부설주차장, cat: '부설' });
+      if (Array.isArray(ml)) sources.push({ path: ml, cat: '공영' });
+    }
+    if (gongPark?.노외주차장?.주차장목록 && Array.isArray(gongPark.노외주차장.주차장목록)) {
+      sources.push({ path: gongPark.노외주차장.주차장목록, cat: '노외' });
+    }
+    if (gongPark?.노상주차장?.주차장목록 && Array.isArray(gongPark.노상주차장.주차장목록)) {
+      sources.push({ path: gongPark.노상주차장.주차장목록, cat: '노상' });
+    }
+    if (gongPark?.부설주차장 && Array.isArray(gongPark.부설주차장)) {
+      sources.push({ path: gongPark.부설주차장, cat: '부설' });
+    }
 
-    // 현재 활성화된 시군구 목록 (데이터 검증 완료된 지역)
-    const ACTIVE_SIGUNGUS = [
-      '강남구', '강동구', '강북구', '강서구', '관악구',
-      '광진구', '구로구', '금천구', '노원구', '도봉구',
-      '동대문구', '동작구', '마포구', '서대문구', '서초구',
-      '성동구', '성북구', '송파구', '양천구', '영등포구',
-      '용산구', '은평구', '종로구', '중구', '중랑구',
-    ];
-
-    for (const file of files) {
-      const sigungu = file.replace('.json', '');
-      if (!ACTIVE_SIGUNGUS.includes(sigungu)) continue;
-      const filePath = path.join(sidoDir, file);
-
-      try {
-        const raw = fs.readFileSync(filePath, 'utf-8');
-        const data = JSON.parse(raw);
-        const allSigunguItems = data.items || [];
-        const dongMap = new Map<string, any[]>();
-
-        for (const item of allSigunguItems) {
-          if (!item.dong) continue;
-          if (!dongMap.has(item.dong)) dongMap.set(item.dong, []);
-          dongMap.get(item.dong)!.push(item);
-        }
-
-        for (const [dong, dongItems] of dongMap) {
-          const slugCount = new Map<string, number>();
-
-          for (const item of dongItems) {
-            const displayName = item.name;
-            let slug = toSlug(displayName);
-
-            if (slugCount.has(slug)) {
-              const count = slugCount.get(slug)! + 1;
-              slugCount.set(slug, count);
-              slug = `${slug}-${count}`;
-            } else {
-              slugCount.set(slug, 1);
-            }
-
-            paths.push({
-              params: { sido, sigungu, dong, slug },
-              props: { item: { ...item, slug }, allItems: dongItems, sigunguItems: allSigunguItems },
-            });
+    for (const { path: arr, cat } of sources) {
+      if (Array.isArray(arr)) {
+        for (const lot of arr) {
+          if (typeof lot === 'object' && (lot.주차장명 || lot.시설명)) {
+            result.push({ lot, category: cat });
           }
         }
-      } catch (e) {
-        // skip invalid files
+      }
+    }
+    return result;
+  }
+
+  // 매칭: item.name으로 공단주소 주차장 찾기
+  function matchLot(itemName: string, allLots: { lot: any; category: string }[]): { lot: any; category: string } | null {
+    const norm = normalizeParkingName(itemName);
+    for (const entry of allLots) {
+      const lotName = entry.lot.주차장명 || entry.lot.시설명 || '';
+      if (normalizeParkingName(lotName) === norm) return entry;
+    }
+    for (const entry of allLots) {
+      const lotName = normalizeParkingName(entry.lot.주차장명 || entry.lot.시설명 || '');
+      if (lotName && norm && (norm.includes(lotName) || lotName.includes(norm))) return entry;
+    }
+    return null;
+  }
+
+  // 주소/주차장명에서 동(dong) 추출
+  function extractDong(lot: any): string | null {
+    const addr = lot.위치 || lot.소재지 || lot.주소 || '';
+    // "(천호동)" or "(마천동 214)"
+    let m = addr.match(/\(([가-힣]+\d*동)/);
+    if (m) return m[1];
+    // "마포구 망원동 397-5" or "강서구 화곡1동"
+    m = addr.match(/[가-힣]+구\s+([가-힣]+\d*동)/);
+    if (m) return m[1];
+    // "고척동 241-21" (주소가 동으로 시작)
+    m = addr.match(/^([가-힣]+\d*동)\s/);
+    if (m) return m[1];
+    // 주차장명에서: "천호1동공영" → "천호1동", "남산동공영" → "남산동"
+    const name = lot.주차장명 || lot.시설명 || '';
+    m = name.match(/^([가-힣]+\d*동)/);
+    if (m) return m[1];
+    // 동명 필드 (용산구 등)
+    if (lot.동명) return lot.동명;
+    return null;
+  }
+
+  // ─── 공단주소 기준으로 페이지 생성 ───
+  const gongdanDir = path.join(process.cwd(), 'data', '공단주소');
+  const parkingDir = path.join(process.cwd(), 'content', 'parking');
+  const paths: any[] = [];
+  const sido = '서울특별시';
+
+  if (!fs.existsSync(gongdanDir)) return paths;
+
+  const gongdanFiles = fs.readdirSync(gongdanDir).filter((f: string) => f.endsWith('.json'));
+
+  for (const file of gongdanFiles) {
+    const sigungu = file.replace('.json', '');
+
+    // 공단주소 로드
+    let gongdanData: any = null;
+    try { gongdanData = JSON.parse(fs.readFileSync(path.join(gongdanDir, file), 'utf-8')); } catch { continue; }
+    const allGongdanLots = extractAllLots(gongdanData);
+    if (allGongdanLots.length === 0) continue;
+
+    // content/parking 보조 데이터 로드 (optional - lat/lng 등)
+    let contentItems: any[] = [];
+    const contentPath = path.join(parkingDir, sido, `${sigungu}.json`);
+    if (fs.existsSync(contentPath)) {
+      try { contentItems = JSON.parse(fs.readFileSync(contentPath, 'utf-8')).items || []; } catch {}
+    }
+
+    // dong별 그룹핑
+    const dongMap = new Map<string, { lot: any; category: string; item: any }[]>();
+
+    for (const entry of allGongdanLots) {
+      const dong = extractDong(entry.lot);
+      if (!dong) continue;
+
+      // content/parking에서 역매칭 (보조 데이터: lat/lng 등)
+      const lotName = entry.lot.주차장명 || entry.lot.시설명 || '';
+      const norm = normalizeParkingName(lotName);
+      let matchedItem: any = null;
+      for (const ci of contentItems) {
+        if (normalizeParkingName(ci.name) === norm) { matchedItem = ci; break; }
+      }
+      if (!matchedItem) {
+        for (const ci of contentItems) {
+          const ciNorm = normalizeParkingName(ci.name);
+          if (ciNorm && norm && (norm.includes(ciNorm) || ciNorm.includes(norm))) { matchedItem = ci; break; }
+        }
+      }
+
+      if (!dongMap.has(dong)) dongMap.set(dong, []);
+      dongMap.get(dong)!.push({ lot: entry.lot, category: entry.category, item: matchedItem });
+    }
+
+    for (const [dong, entries] of dongMap) {
+      const slugCount = new Map<string, number>();
+
+      for (const { lot, category, item } of entries) {
+        const lotName = lot.주차장명 || lot.시설명 || '';
+        let slug = toSlug(lotName);
+        if (!slug) slug = 'parking';
+
+        if (slugCount.has(slug)) {
+          const count = slugCount.get(slug)! + 1;
+          slugCount.set(slug, count);
+          slug = `${slug}-${count}`;
+        } else {
+          slugCount.set(slug, 1);
+        }
+
+        paths.push({
+          params: { sido, sigungu, dong, slug },
+          props: {
+            item: item || null,
+            allItems: contentItems.filter((i: any) => i.dong === dong),
+            sigunguItems: contentItems,
+            matchedLot: lot,
+            matchedCategory: category,
+            gongdanData,
+            editorial: editorialMap.get(`${sigungu}_${lotName}`) || null,
+          },
+        });
       }
     }
   }
@@ -96,24 +213,118 @@ function toSlug(name: string): string {
 }
 
 const { sido, sigungu, dong, slug } = Astro.params;
-const { item, allItems, sigunguItems } = Astro.props;
+const { item, allItems, sigunguItems, matchedLot, matchedCategory, gongdanData, editorial } = Astro.props;
 
-const displayName = item.name;
-const is24h = item.weekdayOpen === '00:00' && (item.weekdayClose === '00:00' || item.weekdayClose === '23:59');
+// 이름 정규화 (요금매칭용)
+function normalizeParkingName(name: string): string {
+  return name
+    .replace(/\s+/g, '')
+    .replace(/(공영주차장|노상주차장|부설주차장|주차장|공영)$/g, '')
+    .trim();
+}
+
+// 매칭된 주차장의 요금정보 찾기
+const matchedFee = (() => {
+  if (!gongdanData || !matchedLot) return null;
+  // 요금정보 배열에서 주차장명으로 매칭 (강동구 패턴)
+  const feeSources = [
+    gongdanData.노상주차장?.요금정보,
+    gongdanData.노외주차장?.요금정보,
+    gongdanData.공영주차장?.노외주차장?.요금정보,
+    gongdanData.공영주차장?.노상주차장?.요금정보,
+  ];
+  const norm = normalizeParkingName(matchedLot.주차장명 || matchedLot.시설명 || '');
+  for (const fees of feeSources) {
+    if (!Array.isArray(fees)) continue;
+    const found = fees.find((f: any) => normalizeParkingName(f.주차장명 || '') === norm);
+    if (found) return found;
+  }
+  // 주차장 항목 자체에 요금 필드 (송파구, 중구 등)
+  const lot = matchedLot;
+  if (lot.시간주차요금 || lot.요금 || lot.요금_5분당 || lot.월정기요금 || lot.월정기 || lot.월정기_주간) {
+    return lot;
+  }
+  return null;
+})();
+
+// 할인/감면 정보 (구 단위)
+const discountInfo = (() => {
+  if (!gongdanData) return null;
+  if (gongdanData.할인정보 && Array.isArray(gongdanData.할인정보)) {
+    if (gongdanData.할인정보.length > 0 && typeof gongdanData.할인정보[0] === 'object') {
+      return { type: 'object' as const, items: gongdanData.할인정보 };
+    }
+    return { type: 'simple' as const, items: gongdanData.할인정보 };
+  }
+  const nosang = gongdanData.공영주차장?.노상주차장 || gongdanData.노상주차장;
+  const nooe = gongdanData.공영주차장?.노외주차장 || gongdanData.노외주차장;
+  const src = (typeof nosang === 'object' && !Array.isArray(nosang) ? nosang?.감면정보 : null)
+           || (typeof nooe === 'object' && !Array.isArray(nooe) ? nooe?.감면정보 : null);
+  if (src && Array.isArray(src)) return { type: 'structured' as const, items: src };
+  return null;
+})();
+
+// 연락처 정보
+const gongdanContact = gongdanData?.연락처 || null;
+
+const displayName = matchedLot?.주차장명 || matchedLot?.시설명 || item?.name || '주차장';
+
+// item이 없을 때 공단주소 기반 대체 객체 생성
+const itemForDisplay = item || {
+  name: displayName,
+  address: matchedLot?.위치 || matchedLot?.소재지 || matchedLot?.주소 || '',
+  roadAddress: matchedLot?.위치 || matchedLot?.소재지 || matchedLot?.주소 || '',
+  lat: null,
+  lng: null,
+  totalSpaces: 0,
+  isFree: false,
+  phone: matchedLot?.연락처 || matchedLot?.전화번호 || gongdanData?.대표전화번호 || null,
+  type: '공영',
+  category: matchedCategory || '',
+  weekdayOpen: '',
+  weekdayClose: '',
+  weekendOpen: '',
+  weekendClose: '',
+  holidayOpen: '',
+  holidayClose: '',
+  dong: null,
+  nearbyAmenities: [],
+  nearbyPOIs: [],
+  images: [],
+};
+
+// ─── 공단주소 기준 핵심 변수 추출 ───
+const gongdanAddress = matchedLot?.위치 || matchedLot?.소재지 || matchedLot?.주소 || itemForDisplay.address;
+const gongdanSpaces = matchedLot?.구획수 || matchedLot?.구획 || matchedLot?.면수 || matchedLot?.총면수 || null;
+const gongdanPhone = matchedLot?.연락처 || matchedLot?.전화번호 || gongdanData?.대표전화번호 || itemForDisplay.phone || null;
+const gongdanGrade = matchedLot?.급지 || null;
+const gongdanArea = matchedLot?.면적 || null;
+const gongdanOrg = gongdanData?.공단명칭 || null;
+const gongdanOperation = matchedLot?.운영 || null;
+const gongdanHours = matchedLot?.운영시간 || null;
+const gongdanHoursWeekday = matchedLot?.운영시간_평일 || null;
+const gongdanHoursSaturday = matchedLot?.운영시간_토요일 || null;
+const gongdanCollectDate = gongdanData?.수집일시 || null;
+const gongdanSource = gongdanData?.데이터출처 || null;
+
+// 운영시간 기반 24시간 판단
+const is24h = gongdanHours
+  ? gongdanHours.includes('24시간')
+  : (itemForDisplay.weekdayOpen === '00:00' && (itemForDisplay.weekdayClose === '00:00' || itemForDisplay.weekdayClose === '23:59'));
 
 // ─── 주변 주차장 (같은 동) ───
-const nearbyItems = allItems
+const nearbyItems = (allItems || [])
   .filter((i: any) => i.name !== displayName)
-  .sort((a: any, b: any) => b.totalSpaces - a.totalSpaces)
+  .sort((a: any, b: any) => (b.totalSpaces || 0) - (a.totalSpaces || 0))
   .slice(0, 5);
 
 // ─── 같은 구 다른 동 주차장 (내부 링크용) ───
-const otherDongs = [...new Set(sigunguItems.map((i: any) => i.dong).filter((d: string) => d && d !== dong))].slice(0, 6);
+const otherDongs = [...new Set((sigunguItems || []).map((i: any) => i.dong).filter((d: string) => d && d !== dong))].slice(0, 6);
 
 // ─── SEO 메타 ───
-const feeLabel = item.isFree ? '무료' : (item.feeInfo || '유료');
-const title = `${displayName} 주차장 요금·운영시간·위치 | ${sigungu} ${dong} ${item.isFree ? '무료' : ''}주차장 | 파킹맵`;
-const description = `${sigungu} ${dong} ${displayName} 주차장 완벽 가이드. ${item.isFree ? '무료주차장' : `요금 ${feeLabel}`}. 주차면 ${item.totalSpaces || '-'}면${is24h ? ', 24시간 운영' : ''}. 주소: ${item.roadAddress || item.address}. 운영시간, 요금 계산, 주변 주차장 비교까지.`;
+const feeLabel = matchedFee ? (matchedFee.시간주차요금 || matchedFee.시간제 || matchedFee.시간제요금 || matchedFee.요금_5분당 || matchedFee.요금 || '유료') : '유료';
+const title = `${displayName} 주차장 요금·운영시간·위치 | ${sigungu} ${dong} ${matchedCategory || '공영'}주차장 | 파킹맵`;
+const description = `${sigungu} ${dong} ${displayName} 주차장 완벽 가이드. ${matchedCategory || '공영'} 주차장. 주차면 ${gongdanSpaces || '-'}${is24h ? ', 24시간 운영' : ''}${gongdanGrade ? `, ${gongdanGrade}` : ''}. 주소: ${gongdanAddress}. ${gongdanOrg || sigungu} 관리.`;
 const canonical = `https://parkingmap.kr/${encodeURIComponent(sido!)}/${encodeURIComponent(sigungu!)}/${encodeURIComponent(dong!)}/${encodeURIComponent(slug!)}/`;
 
 // ─── 브레드크럼 ───
@@ -130,135 +341,112 @@ const parkingSchema = {
   "@context": "https://schema.org",
   "@type": "ParkingFacility",
   "name": displayName,
-  "description": `${sigungu} ${dong}에 위치한 ${item.type} 주차장. ${item.isFree ? '무료' : feeLabel}. 주차면 ${item.totalSpaces || '정보없음'}면.`,
+  "description": `${sigungu} ${dong}에 위치한 ${matchedCategory || '공영'} 주차장. 주차면 ${gongdanSpaces || '정보없음'}.${gongdanGrade ? ` ${gongdanGrade}.` : ''} ${gongdanOrg || sigungu} 관리.`,
   "url": canonical,
   "address": {
     "@type": "PostalAddress",
-    "streetAddress": item.roadAddress || item.address,
+    "streetAddress": gongdanAddress,
     "addressLocality": sigungu,
     "addressRegion": sido,
     "addressCountry": "KR",
   },
-  "geo": {
-    "@type": "GeoCoordinates",
-    "latitude": item.lat,
-    "longitude": item.lng,
-  },
-  ...(item.phone && { "telephone": item.phone }),
-  "isAccessibleForFree": item.isFree,
-  ...(item.totalSpaces && { "maximumAttendeeCapacity": item.totalSpaces }),
-  "openingHoursSpecification": [
-    ...(item.weekdayOpen && item.weekdayClose ? [{
-      "@type": "OpeningHoursSpecification",
-      "dayOfWeek": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
-      "opens": item.weekdayOpen,
-      "closes": item.weekdayClose === "00:00" ? "23:59" : item.weekdayClose,
-    }] : []),
-    ...(item.weekendOpen && item.weekendClose ? [{
-      "@type": "OpeningHoursSpecification",
-      "dayOfWeek": ["Saturday", "Sunday"],
-      "opens": item.weekendOpen,
-      "closes": item.weekendClose === "00:00" ? "23:59" : item.weekendClose,
-    }] : []),
-  ],
-  ...(item.basicCharge && !item.isFree && {
-    "priceRange": `기본 ${item.basicTime}분 ${item.basicCharge}원`,
+  ...(itemForDisplay.lat && itemForDisplay.lng && {
+    "geo": {
+      "@type": "GeoCoordinates",
+      "latitude": itemForDisplay.lat,
+      "longitude": itemForDisplay.lng,
+    },
+  }),
+  ...(gongdanPhone && { "telephone": gongdanPhone }),
+  ...(gongdanSpaces && { "maximumAttendeeCapacity": String(gongdanSpaces).replace(/[^0-9]/g, '') }),
+  ...(gongdanHours && {
+    "openingHours": gongdanHours,
+  }),
+  ...(matchedFee && {
+    "priceRange": feeLabel,
   }),
 };
 
-// ─── FAQ 생성 ───
-function generateFAQ(lot: any, dongName: string, sigunguName: string, nearbyLots: any[] = []) {
+// ─── FAQ 생성 (공단주소 기준) ───
+function generateFAQ(itemData: any, gLot: any, gFee: any, gCat: string | null, gAddr: string, gSpaces: string | null, gHrs: string | null, gGrade: string | null, gOrg: string | null, dongName: string, sigunguName: string, nearbyLots: any[] = []) {
   const faqs: { q: string; a: string }[] = [];
-  const name = lot.name;
+  const name = itemData.name;
 
   // 요금 FAQ
-  if (lot.isFree) {
-    faqs.push({
-      q: `${name} 주차장은 무료인가요?`,
-      a: `네, ${name}은(는) 무료 주차장입니다. ${sigunguName} ${dongName}에 위치한 ${lot.type} 주차장으로, 별도의 주차 요금 없이 이용하실 수 있습니다.`,
-    });
-  } else {
-    const feeDetail = lot.basicTime && lot.basicCharge
-      ? `기본 ${lot.basicTime}분에 ${lot.basicCharge.toLocaleString()}원이며${lot.addUnitTime && lot.addUnitCharge ? `, 추가 ${lot.addUnitTime}분당 ${lot.addUnitCharge.toLocaleString()}원` : ''}입니다.`
-      : `${lot.feeInfo || '유료'}입니다. 상세 요금은 현장에서 확인하시기 바랍니다.`;
+  if (gFee) {
+    const feeStr = gFee.시간주차요금 || gFee.시간제 || gFee.시간제요금 || gFee.요금_5분당 || gFee.요금 || '';
+    const monthlyStr = gFee.월정기요금 || gFee.월정기 || gFee.주간월정기권 || gFee.전일월정기권 || '';
     faqs.push({
       q: `${name} 주차장 요금은 얼마인가요?`,
-      a: `${name} 주차장의 요금은 ${feeDetail}${lot.monthlyPass ? ` 월정기권은 ${lot.monthlyPass.toLocaleString()}원입니다.` : ''}`,
+      a: `${name} 주차장은 ${sigunguName} ${gOrg || '시설관리공단'} 관리 ${gCat || '공영'} 주차장입니다.${gGrade ? ` ${gGrade} 기준` : ''} 시간주차 요금은 ${feeStr || '공단에 문의'}입니다.${monthlyStr ? ` 월정기권은 ${monthlyStr}입니다.` : ''} 정확한 요금은 ${gOrg || sigunguName + ' 관리공단'}에 문의하시기 바랍니다.`,
+    });
+  } else {
+    faqs.push({
+      q: `${name} 주차장 요금은 얼마인가요?`,
+      a: `${name} 주차장의 상세 요금은 ${gOrg || sigunguName + ' 관리공단'}에 문의하시기 바랍니다.`,
     });
   }
 
   // 운영시간 FAQ
-  const is24 = lot.weekdayOpen === '00:00' && (lot.weekdayClose === '00:00' || lot.weekdayClose === '23:59');
-  if (is24) {
-    faqs.push({
-      q: `${name} 주차장은 24시간 운영하나요?`,
-      a: `네, ${name} 주차장은 24시간 운영됩니다.${lot.operatingDays ? ` 운영일은 ${lot.operatingDays}입니다.` : ''} 심야 시간이나 이른 아침에도 이용 가능합니다.`,
-    });
-  } else if (lot.weekdayOpen && lot.weekdayClose) {
-    const wdClose = lot.weekdayClose === '00:00' ? '23:59' : lot.weekdayClose;
-    let answer = `${name} 주차장의 평일 운영시간은 ${lot.weekdayOpen}~${wdClose}입니다.`;
-    if (lot.weekendOpen && lot.weekendClose) {
-      const weClose = lot.weekendClose === '00:00' ? '23:59' : lot.weekendClose;
-      answer += ` 주말에는 ${lot.weekendOpen}~${weClose}에 운영합니다.`;
-    }
-    if (lot.holidayOpen && lot.holidayClose) {
-      const hClose = lot.holidayClose === '00:00' ? '23:59' : lot.holidayClose;
-      answer += ` 공휴일에는 ${lot.holidayOpen}~${hClose}에 이용 가능합니다.`;
-    }
+  if (gHrs) {
     faqs.push({
       q: `${name} 주차장 운영시간은 어떻게 되나요?`,
-      a: answer,
+      a: gHrs.includes('24시간')
+        ? `${name} 주차장은 24시간 운영됩니다. 심야 시간이나 이른 아침에도 이용 가능합니다.`
+        : `${name} 주차장의 운영시간은 ${gHrs}입니다.`,
+    });
+  } else if (itemData.weekdayOpen && itemData.weekdayClose) {
+    const wdClose = itemData.weekdayClose === '00:00' ? '23:59' : itemData.weekdayClose;
+    const is24 = itemData.weekdayOpen === '00:00' && (itemData.weekdayClose === '00:00' || itemData.weekdayClose === '23:59');
+    faqs.push({
+      q: `${name} 주차장 운영시간은 어떻게 되나요?`,
+      a: is24
+        ? `${name} 주차장은 24시간 운영됩니다.`
+        : `${name} 주차장의 평일 운영시간은 ${itemData.weekdayOpen}~${wdClose}입니다.${itemData.weekendOpen ? ` 주말: ${itemData.weekendOpen}~${itemData.weekendClose === '00:00' ? '23:59' : itemData.weekendClose}` : ''}`,
     });
   }
 
   // 위치 FAQ
   faqs.push({
     q: `${name} 주차장 위치가 어디인가요?`,
-    a: `${name} 주차장은 ${lot.roadAddress || lot.address}에 위치해 있습니다. ${sigunguName} ${dongName} 지역에 있으며, 네이버지도나 카카오맵에서 '${name}'을 검색하시면 정확한 길안내를 받으실 수 있습니다.`,
+    a: `${name} 주차장은 ${gAddr}에 위치해 있습니다. ${sigunguName} ${dongName} 지역에 있으며, 네이버지도나 카카오맵에서 '${name}'을 검색하시면 정확한 길안내를 받으실 수 있습니다.`,
   });
 
   // 주차면수 FAQ
-  if (lot.totalSpaces) {
+  if (gSpaces) {
+    const spacesNum = parseInt(String(gSpaces).replace(/[^0-9]/g, ''));
     faqs.push({
       q: `${name} 주차장에 주차 자리가 많나요?`,
-      a: `${name} 주차장은 총 ${lot.totalSpaces}면의 주차 공간을 보유하고 있습니다. ${lot.totalSpaces >= 200 ? '대형 주차장으로 주차 자리를 비교적 쉽게 찾으실 수 있습니다.' : lot.totalSpaces >= 50 ? '중규모 주차장으로 일반적인 상황에서는 주차가 원활합니다.' : '소규모 주차장이므로 혼잡 시간대에는 만차일 수 있습니다.'}`,
+      a: `${name} 주차장은 총 ${gSpaces}의 주차 공간을 보유하고 있습니다. ${spacesNum >= 200 ? '대형 주차장으로 주차 자리를 비교적 쉽게 찾으실 수 있습니다.' : spacesNum >= 50 ? '중규모 주차장으로 일반적인 상황에서는 주차가 원활합니다.' : '소규모 주차장이므로 혼잡 시간대에는 만차일 수 있습니다.'}`,
     });
   }
 
-  // 주말 운영 FAQ
-  if (lot.weekendOpen && lot.weekendClose) {
-    const weClose = lot.weekendClose === '00:00' ? '23:59' : lot.weekendClose;
-    const isWeekend24 = lot.weekendOpen === '00:00' && (lot.weekendClose === '00:00' || lot.weekendClose === '23:59');
+  // 급지 FAQ
+  if (gGrade) {
     faqs.push({
-      q: `${name} 주차장 주말에도 이용할 수 있나요?`,
-      a: isWeekend24
-        ? `네, ${name} 주차장은 주말(토·일)에도 24시간 운영합니다. 주말 나들이나 쇼핑 시에도 편하게 이용하실 수 있습니다.`
-        : `네, ${name} 주차장은 주말에도 ${lot.weekendOpen}~${weClose}에 운영합니다.`,
+      q: `${name} 주차장은 몇 급지인가요?`,
+      a: `${name} 주차장은 ${sigunguName} 공영주차장 기준 ${gGrade}입니다. 급지에 따라 시간주차 요금과 월정기권 가격이 달라집니다.`,
     });
   }
 
-  // 공휴일 운영 FAQ
-  if (lot.holidayOpen && lot.holidayClose) {
-    const hClose = lot.holidayClose === '00:00' ? '23:59' : lot.holidayClose;
-    const isHoliday24 = lot.holidayOpen === '00:00' && (lot.holidayClose === '00:00' || lot.holidayClose === '23:59');
+  // 관리공단 FAQ
+  if (gOrg) {
     faqs.push({
-      q: `${name} 주차장은 공휴일에도 운영하나요?`,
-      a: isHoliday24
-        ? `네, ${name} 주차장은 공휴일에도 24시간 정상 운영합니다.${lot.operatingDays ? ` 운영일: ${lot.operatingDays}.` : ''} 연휴 기간에도 이용 가능합니다.`
-        : `네, ${name} 주차장은 공휴일에도 ${lot.holidayOpen}~${hClose}에 운영합니다.`,
+      q: `${name} 주차장 관리는 어디서 하나요?`,
+      a: `${name} 주차장은 ${gOrg}에서 관리합니다.${gongdanPhone ? ` 문의 전화: ${gongdanPhone}` : ''}`,
     });
   }
 
   // 네비게이션 검색 FAQ
   faqs.push({
     q: `${name} 주차장은 네비게이션에 뭐라고 검색하면 되나요?`,
-    a: `"${name}" 또는 도로명 주소 "${lot.roadAddress || lot.address}"로 검색하시면 정확히 안내됩니다. 네이버지도, 카카오맵, 티맵 모두 검색 가능합니다.`,
+    a: `"${name}" 또는 "${gAddr}"로 검색하시면 정확히 안내됩니다. 네이버지도, 카카오맵, 티맵 모두 검색 가능합니다.`,
   });
 
   // 만차 시 대안 FAQ
   if (nearbyLots && nearbyLots.length > 0) {
     const altList = nearbyLots.slice(0, 3).map((n: any, i: number) =>
-      `${i + 1}) ${n.name} (${n.totalSpaces ? n.totalSpaces + '면' : ''}${n.isFree ? ', 무료' : ''})`
+      `${i + 1}) ${n.name} (${n.totalSpaces ? n.totalSpaces + '면' : ''})`
     ).join(' ');
     faqs.push({
       q: `${name} 주차장이 만차일 때 근처 대안 주차장은?`,
@@ -266,29 +454,10 @@ function generateFAQ(lot: any, dongName: string, sigunguName: string, nearbyLots
     });
   }
 
-  // 높이제한 FAQ (데이터 있을 때만)
-  if (lot.heightLimit) {
-    faqs.push({
-      q: `${name} 주차장 높이제한이 있나요?`,
-      a: `${name} 주차장의 높이제한은 ${lot.heightLimit}m입니다. ${lot.heightLimit >= 2.1 ? '일반 SUV(싼타페, 쏘렌토 등)는 주차 가능합니다.' : 'SUV 차량은 주의가 필요합니다.'} ${lot.heightLimit >= 2.3 ? '대형 SUV(팰리세이드 등)도 주차 가능합니다.' : '대형 SUV는 사전 확인을 권장합니다.'}`,
-    });
-  }
-
-  // 전기차 충전 FAQ (데이터 있을 때만)
-  if (lot.evCharger) {
-    const ev = lot.evCharger;
-    faqs.push({
-      q: `${name} 주차장에서 전기차 충전이 가능한가요?`,
-      a: (ev.fast || ev.slow)
-        ? `네, ${name} 주차장에는 ${ev.fast ? `급속충전기 ${ev.fast}기` : ''}${ev.fast && ev.slow ? ', ' : ''}${ev.slow ? `완속충전기 ${ev.slow}기` : ''}가 설치되어 있습니다.`
-        : `현재 ${name} 주차장에는 전기차 충전 시설이 없습니다.`,
-    });
-  }
-
   return faqs;
 }
 
-const faqs = generateFAQ(item, dong!, sigungu!, nearbyItems);
+const faqs = generateFAQ(itemForDisplay, matchedLot, matchedFee, matchedCategory, gongdanAddress, gongdanSpaces, gongdanHours, gongdanGrade, gongdanOrg, dong!, sigungu!, nearbyItems);
 
 // Schema.org: FAQPage
 const faqSchema = faqs.length > 0 ? {
@@ -320,7 +489,7 @@ function calcScore(lot: any): number {
   return Math.min(9.8, Math.round(score * 10) / 10);
 }
 
-const score = calcScore(item);
+const score = calcScore(itemForDisplay);
 
 // ─── Schema.org: Review ───
 const reviewSchema = {
@@ -330,13 +499,13 @@ const reviewSchema = {
     "@type": "Organization",
     "name": "파킹맵",
   },
-  "datePublished": item.lastVerified || item.updatedAt || "2026-02-11",
+  "datePublished": gongdanCollectDate || "2026-02-15",
   "reviewRating": {
     "@type": "Rating",
     "ratingValue": String(score),
     "bestRating": "10",
   },
-  "reviewBody": `${sigungu} ${dong}에 위치한 ${item.type} 주차장. ${item.totalSpaces ? item.totalSpaces + '면 규모.' : ''} ${is24h ? '24시간 운영.' : ''} ${item.isFree ? '무료 주차장.' : feeLabel + '.'}`,
+  "reviewBody": `${sigungu} ${dong}에 위치한 ${matchedCategory || '공영'} 주차장. ${gongdanSpaces ? gongdanSpaces + ' 규모.' : ''} ${is24h ? '24시간 운영.' : ''}${gongdanGrade ? ` ${gongdanGrade}.` : ''} ${gongdanOrg || sigungu} 관리.`,
 };
 
 function scoreLabel(s: number): string {
@@ -356,26 +525,6 @@ function scoreColor(s: number): string {
 const scoreLbl = scoreLabel(score);
 const scoreClr = scoreColor(score);
 
-// ─── 요금 계산 ───
-function calcFee(minutes: number, lot: any): number | null {
-  if (lot.isFree) return 0;
-  if (!lot.basicTime || !lot.basicCharge) return null;
-  if (minutes <= 0) return 0;
-  if (minutes <= lot.basicTime) return lot.basicCharge;
-  const extraMinutes = minutes - lot.basicTime;
-  if (lot.addUnitTime && lot.addUnitCharge && lot.addUnitTime > 0) {
-    const extraUnits = Math.ceil(extraMinutes / lot.addUnitTime);
-    return lot.basicCharge + extraUnits * lot.addUnitCharge;
-  }
-  return lot.basicCharge;
-}
-
-const feeDurations = [30, 60, 120, 180];
-const feeTable = feeDurations.map(d => ({
-  label: d < 60 ? `${d}분` : `${d / 60}시간`,
-  fee: calcFee(d, item),
-})).filter(f => f.fee !== null);
-
 // ─── "이 주차장이 맞는 분" 태그 ───
 function getMatchTags(lot: any): string[] {
   const tags: string[] = [];
@@ -391,7 +540,7 @@ function getMatchTags(lot: any): string[] {
   return tags.slice(0, 4);
 }
 
-const matchTags = getMatchTags(item);
+const matchTags = getMatchTags(itemForDisplay);
 
 // ─── 에디터 리뷰 (강화) ───
 function generateReview(lot: any, dongName: string, sigunguName: string) {
@@ -487,7 +636,7 @@ function generateReview(lot: any, dongName: string, sigunguName: string) {
   };
 }
 
-const review = generateReview(item, dong!, sigungu!);
+const review = generateReview(itemForDisplay, dong!, sigungu!);
 
 // ─── Notion 에디토리얼 콘텐츠 ───
 const editorialSlug = `${sido}-${sigungu}-${dong}-${slug}`;
@@ -500,10 +649,16 @@ if (editorialEntry) {
 }
 
 // ─── 외부 지도 링크 ───
-const naverUrl = `https://map.naver.com/p/search/${encodeURIComponent(item.address)}`;
-const kakaoUrl = `https://map.kakao.com/link/map/${encodeURIComponent(displayName)},${item.lat},${item.lng}`;
-const tmapUrl = `https://tmap.life/route?goalname=${encodeURIComponent(displayName)}&goaly=${item.lat}&goalx=${item.lng}`;
-const googleMapUrl = `https://www.google.com/maps/search/?api=1&query=${item.lat},${item.lng}&query_place_id=${encodeURIComponent(displayName)}`;
+const naverUrl = `https://map.naver.com/p/search/${encodeURIComponent(gongdanAddress)}`;
+const kakaoUrl = itemForDisplay.lat && itemForDisplay.lng
+  ? `https://map.kakao.com/link/map/${encodeURIComponent(displayName)},${itemForDisplay.lat},${itemForDisplay.lng}`
+  : `https://map.kakao.com/link/search/${encodeURIComponent(gongdanAddress)}`;
+const tmapUrl = itemForDisplay.lat && itemForDisplay.lng
+  ? `https://tmap.life/route?goalname=${encodeURIComponent(displayName)}&goaly=${itemForDisplay.lat}&goalx=${itemForDisplay.lng}`
+  : `https://tmap.life/route?goalname=${encodeURIComponent(gongdanAddress)}`;
+const googleMapUrl = itemForDisplay.lat && itemForDisplay.lng
+  ? `https://www.google.com/maps/search/?api=1&query=${itemForDisplay.lat},${itemForDisplay.lng}&query_place_id=${encodeURIComponent(displayName)}`
+  : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(gongdanAddress)}`;
 
 // ─── 시간 포맷 ───
 function formatTime(open: string, close: string): string {
@@ -513,7 +668,7 @@ function formatTime(open: string, close: string): string {
 }
 
 // ─── 이미지 (추후 확장) ───
-const images: string[] = item.images || [];
+const images: string[] = itemForDisplay.images || [];
 ---
 
 <BaseLayout title={title} description={description} canonical={canonical} ogType="place" breadcrumbs={breadcrumbs}>
@@ -543,34 +698,38 @@ const images: string[] = item.images || [];
   <section class="mb-8">
     <div class="flex items-center gap-3 mb-3 flex-wrap">
       <h1 class="text-3xl md:text-4xl font-black text-gray-900">{displayName}</h1>
-      <span class={`px-3 py-1 text-sm font-bold rounded-lg ${item.isFree ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-blue-700'}`}>
-        {item.isFree ? '무료' : '유료'}
+      <span class="px-3 py-1 text-sm font-bold rounded-lg bg-blue-100 text-blue-700">
+        {matchedCategory || '공영'}
       </span>
       {is24h && (
         <span class="px-3 py-1 text-sm font-bold rounded-lg bg-purple-100 text-purple-700">24시간</span>
       )}
-      <span class="px-3 py-1 text-sm font-medium rounded-lg bg-gray-100 text-gray-600">
-        {item.type}{item.category ? ` · ${item.category}` : ''}
-      </span>
+      {gongdanGrade && (
+        <span class="px-3 py-1 text-sm font-bold rounded-lg bg-amber-100 text-amber-700">{gongdanGrade}</span>
+      )}
+      {gongdanOperation && (
+        <span class="px-3 py-1 text-sm font-medium rounded-lg bg-gray-100 text-gray-600">{gongdanOperation}</span>
+      )}
     </div>
-    <p class="text-gray-500 mb-2">{item.roadAddress || item.address}</p>
-    <p class="text-sm text-gray-400 italic">"{review.oneLiner}"</p>
+    <p class="text-gray-500 mb-2">{gongdanAddress}</p>
+    {gongdanOrg && <p class="text-sm text-gray-400">{gongdanOrg} 관리</p>}
+    <p class="text-sm text-gray-400 italic mt-1">"{review.oneLiner}"</p>
   </section>
 
   <!-- ━━━ 핵심 정보 카드 ━━━ -->
   <section class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-8" aria-label="핵심 정보">
     <div class="bg-gray-50 rounded-xl p-4 text-center">
       <p class="text-xs text-gray-400 mb-1">주차면수</p>
-      <p class="text-xl font-black text-gray-900">{item.totalSpaces ? `${item.totalSpaces}면` : '-'}</p>
+      <p class="text-xl font-black text-gray-900">{gongdanSpaces || '-'}</p>
     </div>
-    <div class={`rounded-xl p-4 text-center ${item.isFree ? 'bg-emerald-50' : 'bg-blue-50'}`}>
-      <p class={`text-xs mb-1 ${item.isFree ? 'text-emerald-500' : 'text-blue-500'}`}>요금</p>
-      <p class={`text-xl font-black ${item.isFree ? 'text-emerald-600' : 'text-blue-600'}`}>{item.isFree ? '무료' : (item.basicCharge ? `${item.basicCharge.toLocaleString()}원` : '유료')}</p>
-      {!item.isFree && item.basicTime && <p class={`text-xs mt-0.5 ${item.isFree ? 'text-emerald-400' : 'text-blue-400'}`}>기본 {item.basicTime}분</p>}
+    <div class="rounded-xl p-4 text-center bg-blue-50">
+      <p class="text-xs mb-1 text-blue-500">요금</p>
+      <p class="text-lg font-black text-blue-600">{matchedFee ? (matchedFee.시간주차요금 || matchedFee.시간제 || matchedFee.시간제요금 || matchedFee.요금_5분당 || matchedFee.요금 || '유료') : '공단 문의'}</p>
+      {gongdanGrade && <p class="text-xs mt-0.5 text-blue-400">{gongdanGrade}</p>}
     </div>
     <div class="bg-gray-50 rounded-xl p-4 text-center">
       <p class="text-xs text-gray-400 mb-1">운영시간</p>
-      <p class="text-lg font-black text-gray-900">{is24h ? '24시간' : (item.weekdayOpen && item.weekdayClose ? `${item.weekdayOpen}~${item.weekdayClose === '00:00' ? '23:59' : item.weekdayClose}` : '-')}</p>
+      <p class="text-lg font-black text-gray-900">{is24h ? '24시간' : (gongdanHours || (itemForDisplay.weekdayOpen && itemForDisplay.weekdayClose ? `${itemForDisplay.weekdayOpen}~${itemForDisplay.weekdayClose === '00:00' ? '23:59' : itemForDisplay.weekdayClose}` : '-'))}</p>
     </div>
     <div class="bg-gray-50 rounded-xl p-4 text-center">
       <p class="text-xs text-gray-400 mb-1">파킹맵 점수</p>
@@ -649,7 +808,11 @@ const images: string[] = item.images || [];
         <h2 class="text-lg font-bold text-gray-900 mt-0.5">{displayName} 이용 가이드</h2>
       </div>
     </div>
-    {EditorialContent ? (
+    {editorial?.editorOpinion ? (
+      <div class="text-gray-700 text-[15px] leading-relaxed space-y-3 pl-12">
+        <p>{editorial.editorOpinion}</p>
+      </div>
+    ) : EditorialContent ? (
       <div class="prose prose-emerald max-w-none text-gray-700 text-[15px] leading-relaxed pl-12">
         <EditorialContent />
       </div>
@@ -662,9 +825,11 @@ const images: string[] = item.images || [];
     )}
     <div class="mt-4 pt-3 border-t border-emerald-100 pl-12">
       <p class="text-xs text-gray-400">
-        {EditorialContent
-          ? '파킹맵 에디터가 직접 작성한 리뷰입니다. 현장 상황과 다를 수 있으니 방문 전 확인을 권장합니다.'
-          : '공공데이터포털(data.go.kr) 기반 파킹맵 에디터 작성. 현장 상황과 다를 수 있으니 방문 전 확인을 권장합니다.'}
+        {editorial?.editorOpinion
+          ? `파킹맵 에디터가 직접 작성한 리뷰입니다 (${editorial.updatedAt || ''}). 현장 상황과 다를 수 있으니 방문 전 확인을 권장합니다.`
+          : EditorialContent
+            ? '파킹맵 에디터가 직접 작성한 리뷰입니다. 현장 상황과 다를 수 있으니 방문 전 확인을 권장합니다.'
+            : '공공데이터포털(data.go.kr) 기반 파킹맵 에디터 작성. 현장 상황과 다를 수 있으니 방문 전 확인을 권장합니다.'}
       </p>
     </div>
   </section>
@@ -696,101 +861,71 @@ const images: string[] = item.images || [];
     <dl class="grid grid-cols-1 sm:grid-cols-2 gap-y-3 gap-x-6">
       <div class="flex gap-3">
         <dt class="text-sm text-gray-400 w-20 shrink-0">주소</dt>
-        <dd class="text-sm text-gray-900 font-medium">{item.address}</dd>
+        <dd class="text-sm text-gray-900 font-medium">{gongdanAddress}</dd>
       </div>
-      {item.roadAddress && item.roadAddress !== item.address && (
-        <div class="flex gap-3">
-          <dt class="text-sm text-gray-400 w-20 shrink-0">도로명</dt>
-          <dd class="text-sm text-gray-900 font-medium">{item.roadAddress}</dd>
-        </div>
-      )}
       <div class="flex gap-3">
         <dt class="text-sm text-gray-400 w-20 shrink-0">유형</dt>
-        <dd class="text-sm text-gray-900 font-medium">{item.type}{item.category ? ` / ${item.category}` : ''}</dd>
+        <dd class="text-sm text-gray-900 font-medium">{matchedCategory || '공영'}</dd>
       </div>
-      <div class="flex gap-3">
-        <dt class="text-sm text-gray-400 w-20 shrink-0">주차면수</dt>
-        <dd class="text-sm text-gray-900 font-medium">{item.totalSpaces ? `${item.totalSpaces}면` : '정보 없음'}</dd>
-      </div>
-      {item.phone && (
+      {gongdanSpaces && (
         <div class="flex gap-3">
-          <dt class="text-sm text-gray-400 w-20 shrink-0">전화번호</dt>
+          <dt class="text-sm text-gray-400 w-20 shrink-0">구획수</dt>
+          <dd class="text-sm text-gray-900 font-medium">{gongdanSpaces}</dd>
+        </div>
+      )}
+      {gongdanGrade && (
+        <div class="flex gap-3">
+          <dt class="text-sm text-gray-400 w-20 shrink-0">급지</dt>
           <dd class="text-sm text-gray-900 font-medium">
-            <a href={`tel:${item.phone}`} class="text-emerald-600 hover:underline">{item.phone}</a>
+            <span class="inline-flex items-center px-2 py-0.5 text-xs font-semibold rounded-md bg-amber-50 text-amber-700 border border-amber-200">{gongdanGrade}</span>
           </dd>
         </div>
       )}
-      <div class="flex gap-3">
-        <dt class="text-sm text-gray-400 w-20 shrink-0">운영일</dt>
-        <dd class="text-sm text-gray-900 font-medium">{item.operatingDays || '정보 없음'}</dd>
-      </div>
-      {item.updatedAt && (
+      {gongdanArea && (
+        <div class="flex gap-3">
+          <dt class="text-sm text-gray-400 w-20 shrink-0">면적</dt>
+          <dd class="text-sm text-gray-900 font-medium">{gongdanArea}</dd>
+        </div>
+      )}
+      {gongdanPhone && (
+        <div class="flex gap-3">
+          <dt class="text-sm text-gray-400 w-20 shrink-0">전화번호</dt>
+          <dd class="text-sm text-gray-900 font-medium">
+            <a href={`tel:${gongdanPhone}`} class="text-emerald-600 hover:underline">{gongdanPhone}</a>
+          </dd>
+        </div>
+      )}
+      {gongdanOperation && (
+        <div class="flex gap-3">
+          <dt class="text-sm text-gray-400 w-20 shrink-0">운영방식</dt>
+          <dd class="text-sm text-gray-900 font-medium">{gongdanOperation}</dd>
+        </div>
+      )}
+      {gongdanOrg && (
+        <div class="flex gap-3">
+          <dt class="text-sm text-gray-400 w-20 shrink-0">관리공단</dt>
+          <dd class="text-sm text-gray-900 font-medium">{gongdanOrg}</dd>
+        </div>
+      )}
+      {gongdanCollectDate && (
         <div class="flex gap-3">
           <dt class="text-sm text-gray-400 w-20 shrink-0">데이터기준</dt>
-          <dd class="text-sm text-gray-900 font-medium">{item.updatedAt}</dd>
+          <dd class="text-sm text-gray-900 font-medium">{gongdanCollectDate}</dd>
         </div>
       )}
     </dl>
   </section>
 
-  <!-- ━━━ 시설 상세 정보 (현장 확인) ━━━ -->
-  <section class="border border-gray-200 rounded-2xl p-5 mb-4">
-    <h2 class="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
-      <svg class="w-5 h-5 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>
-      시설 상세 정보
-    </h2>
-    <dl class="grid grid-cols-1 sm:grid-cols-2 gap-y-3 gap-x-6">
-      <div class="flex gap-3">
-        <dt class="text-sm text-gray-400 w-24 shrink-0">주차장 구조</dt>
-        <dd class="text-sm text-gray-900 font-medium">{item.structure || item.category || '현장 확인 예정'}</dd>
-      </div>
-      <div class="flex gap-3">
-        <dt class="text-sm text-gray-400 w-24 shrink-0">높이제한</dt>
-        <dd class="text-sm text-gray-900 font-medium">{item.heightLimit ? `${item.heightLimit}m` : '현장 확인 예정'}</dd>
-      </div>
-      <div class="flex gap-3">
-        <dt class="text-sm text-gray-400 w-24 shrink-0">일일최대요금</dt>
-        <dd class="text-sm text-gray-900 font-medium">{item.dailyMax ? `${item.dailyMax.toLocaleString()}원` : '현장 확인 예정'}</dd>
-      </div>
-      <div class="flex gap-3">
-        <dt class="text-sm text-gray-400 w-24 shrink-0">결제방법</dt>
-        <dd class="text-sm text-gray-900 font-medium">{item.paymentMethods || '현장 확인 예정'}</dd>
-      </div>
-      <div class="flex gap-3">
-        <dt class="text-sm text-gray-400 w-24 shrink-0">장애인 주차면</dt>
-        <dd class="text-sm text-gray-900 font-medium">{item.disabledSpaces ? `${item.disabledSpaces}면` : '현장 확인 예정'}</dd>
-      </div>
-      <div class="flex gap-3">
-        <dt class="text-sm text-gray-400 w-24 shrink-0">전기차 충전</dt>
-        <dd class="text-sm text-gray-900 font-medium">
-          {item.evCharger
-            ? `${item.evCharger.fast ? `급속 ${item.evCharger.fast}기` : ''}${item.evCharger.fast && item.evCharger.slow ? ' / ' : ''}${item.evCharger.slow ? `완속 ${item.evCharger.slow}기` : ''}`
-            : '현장 확인 예정'}
-        </dd>
-      </div>
-      <div class="flex gap-3">
-        <dt class="text-sm text-gray-400 w-24 shrink-0">CCTV</dt>
-        <dd class="text-sm text-gray-900 font-medium">{item.cctv ? `${item.cctv}대` : '현장 확인 예정'}</dd>
-      </div>
-      {item.stationConnection && (
-        <div class="flex gap-3">
-          <dt class="text-sm text-gray-400 w-24 shrink-0">역 연결</dt>
-          <dd class="text-sm text-gray-900 font-medium">{item.stationConnection}</dd>
-        </div>
-      )}
-    </dl>
-    <p class="text-xs text-gray-400 mt-4 border-t border-gray-100 pt-3">파킹맵 에디터가 현장 방문 후 확인·업데이트 중입니다. 일부 정보는 아직 수집 전일 수 있습니다.</p>
-  </section>
 
   <!-- ━━━ 주변 편의시설 ━━━ -->
-  {item.nearbyAmenities && item.nearbyAmenities.length > 0 && (
+  {itemForDisplay.nearbyAmenities && itemForDisplay.nearbyAmenities.length > 0 && (
     <section class="border border-gray-200 rounded-2xl p-5 mb-4">
       <h2 class="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
         <svg class="w-5 h-5 text-teal-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21l-7-5-7 5V5a2 2 0 012-2h10a2 2 0 012 2z"/></svg>
         주변 편의시설
       </h2>
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
-        {item.nearbyAmenities.map((a: any) => (
+        {itemForDisplay.nearbyAmenities.map((a: any) => (
           <div class="flex items-center gap-3 p-3 bg-gray-50 rounded-xl">
             <div class="w-10 h-10 bg-teal-100 rounded-full flex items-center justify-center shrink-0">
               <span class="text-teal-700 text-xs font-black">{a.walkMin}분</span>
@@ -812,20 +947,39 @@ const images: string[] = item.images || [];
       <svg class="w-5 h-5 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
       운영 시간
     </h2>
-    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+    {gongdanHours ? (
       <div class="bg-gray-50 rounded-xl p-4 text-center">
-        <p class="text-xs text-gray-400 mb-1">평일 (월~금)</p>
-        <p class="text-sm font-bold text-gray-900">{formatTime(item.weekdayOpen, item.weekdayClose)}</p>
+        <p class="text-sm font-bold text-gray-900">{gongdanHours}</p>
       </div>
-      <div class="bg-gray-50 rounded-xl p-4 text-center">
-        <p class="text-xs text-gray-400 mb-1">토요일</p>
-        <p class="text-sm font-bold text-gray-900">{formatTime(item.weekendOpen, item.weekendClose)}</p>
+    ) : gongdanHoursWeekday ? (
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div class="bg-gray-50 rounded-xl p-4 text-center">
+          <p class="text-xs text-gray-400 mb-1">평일</p>
+          <p class="text-sm font-bold text-gray-900">{gongdanHoursWeekday}</p>
+        </div>
+        {gongdanHoursSaturday && (
+          <div class="bg-gray-50 rounded-xl p-4 text-center">
+            <p class="text-xs text-gray-400 mb-1">토요일</p>
+            <p class="text-sm font-bold text-gray-900">{gongdanHoursSaturday}</p>
+          </div>
+        )}
       </div>
-      <div class="bg-gray-50 rounded-xl p-4 text-center">
-        <p class="text-xs text-gray-400 mb-1">공휴일</p>
-        <p class="text-sm font-bold text-gray-900">{formatTime(item.holidayOpen, item.holidayClose)}</p>
+    ) : (
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div class="bg-gray-50 rounded-xl p-4 text-center">
+          <p class="text-xs text-gray-400 mb-1">평일 (월~금)</p>
+          <p class="text-sm font-bold text-gray-900">{formatTime(itemForDisplay.weekdayOpen, itemForDisplay.weekdayClose)}</p>
+        </div>
+        <div class="bg-gray-50 rounded-xl p-4 text-center">
+          <p class="text-xs text-gray-400 mb-1">토요일</p>
+          <p class="text-sm font-bold text-gray-900">{formatTime(itemForDisplay.weekendOpen, itemForDisplay.weekendClose)}</p>
+        </div>
+        <div class="bg-gray-50 rounded-xl p-4 text-center">
+          <p class="text-xs text-gray-400 mb-1">공휴일</p>
+          <p class="text-sm font-bold text-gray-900">{formatTime(itemForDisplay.holidayOpen, itemForDisplay.holidayClose)}</p>
+        </div>
       </div>
-    </div>
+    )}
   </section>
 
   <!-- ━━━ 요금 정보 ━━━ -->
@@ -833,75 +987,152 @@ const images: string[] = item.images || [];
     <h2 class="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
       <svg class="w-5 h-5 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
       요금 정보
+      {gongdanGrade && <span class="text-xs font-medium text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full ml-2">{gongdanGrade}</span>}
     </h2>
 
-    {item.isFree ? (
-      <div class="bg-emerald-50 rounded-xl p-5 text-center">
-        <p class="text-2xl font-black text-emerald-600">무료 주차장</p>
-        <p class="text-sm text-emerald-500 mt-1">별도의 주차 요금 없이 이용하실 수 있습니다</p>
-      </div>
-    ) : (
-      <div class="space-y-4">
-        {/* 기본 요금 정보 */}
-        <div class="bg-blue-50 rounded-xl p-4">
-          <div class="flex flex-wrap justify-center gap-6 text-center">
-            {item.basicTime && item.basicCharge ? (
-              <div>
-                <p class="text-xs text-blue-400 mb-1">기본요금</p>
-                <p class="text-lg font-black text-blue-700">{item.basicCharge.toLocaleString()}원</p>
-                <p class="text-xs text-blue-400">{item.basicTime}분</p>
-              </div>
-            ) : (
-              <div>
-                <p class="text-xs text-blue-400 mb-1">요금</p>
-                <p class="text-lg font-bold text-blue-700">{item.feeInfo || '유료'}</p>
-              </div>
-            )}
-            {item.addUnitTime && item.addUnitCharge ? (
-              <div>
-                <p class="text-xs text-blue-400 mb-1">추가요금</p>
-                <p class="text-lg font-black text-blue-700">{item.addUnitCharge.toLocaleString()}원</p>
-                <p class="text-xs text-blue-400">{item.addUnitTime}분당</p>
-              </div>
-            ) : null}
-            {item.monthlyPass && item.monthlyPass > 0 ? (
-              <div>
-                <p class="text-xs text-blue-400 mb-1">월정기권</p>
-                <p class="text-lg font-black text-blue-700">{item.monthlyPass.toLocaleString()}원</p>
-                <p class="text-xs text-blue-400">1개월</p>
-              </div>
-            ) : null}
+    {matchedFee ? (
+      <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
+        {(matchedFee.시간주차요금 || matchedFee.시간제 || matchedFee.시간제요금) && (
+          <div class="bg-amber-50 rounded-xl p-4 text-center">
+            <p class="text-xs text-amber-500 mb-1">시간주차</p>
+            <p class="text-sm font-bold text-amber-700">{matchedFee.시간주차요금 || matchedFee.시간제 || matchedFee.시간제요금}</p>
           </div>
-        </div>
-
-        {/* 요금 계산표 */}
-        {feeTable.length > 0 && (
-          <div>
-            <h3 class="text-sm font-bold text-gray-700 mb-2">예상 주차 요금</h3>
-            <div class="grid grid-cols-4 gap-2">
-              {feeTable.map((f) => (
-                <div class="bg-gray-50 rounded-lg p-3 text-center">
-                  <p class="text-xs text-gray-400 mb-1">{f.label}</p>
-                  <p class="text-sm font-bold text-gray-900">{f.fee === 0 ? '무료' : `${f.fee!.toLocaleString()}원`}</p>
-                </div>
-              ))}
-            </div>
-            <p class="text-xs text-gray-400 mt-2">* 일일 최대 요금, 할인 등은 현장에서 확인하세요</p>
+        )}
+        {matchedFee.요금_5분당 && (
+          <div class="bg-amber-50 rounded-xl p-4 text-center">
+            <p class="text-xs text-amber-500 mb-1">5분당 요금</p>
+            <p class="text-sm font-bold text-amber-700">{matchedFee.요금_5분당}</p>
+          </div>
+        )}
+        {matchedFee.요금 && !matchedFee.시간주차요금 && !matchedFee.요금_5분당 && (
+          <div class="bg-amber-50 rounded-xl p-4 text-center">
+            <p class="text-xs text-amber-500 mb-1">요금</p>
+            <p class="text-sm font-bold text-amber-700">{matchedFee.요금}</p>
+          </div>
+        )}
+        {(matchedFee.월정기요금 || matchedFee.월정기) && (
+          <div class="bg-blue-50 rounded-xl p-4 text-center">
+            <p class="text-xs text-blue-400 mb-1">월정기권</p>
+            <p class="text-sm font-bold text-blue-700">{matchedFee.월정기요금 || matchedFee.월정기}</p>
+          </div>
+        )}
+        {matchedFee.월정기_주간 && (
+          <div class="bg-blue-50 rounded-xl p-4 text-center">
+            <p class="text-xs text-blue-400 mb-1">월정기 (주간)</p>
+            <p class="text-sm font-bold text-blue-700">{matchedFee.월정기_주간}</p>
+          </div>
+        )}
+        {matchedFee.월정기_야간 && (
+          <div class="bg-blue-50 rounded-xl p-4 text-center">
+            <p class="text-xs text-blue-400 mb-1">월정기 (야간)</p>
+            <p class="text-sm font-bold text-blue-700">{matchedFee.월정기_야간}</p>
+          </div>
+        )}
+        {matchedFee.주간월정기권 && (
+          <div class="bg-blue-50 rounded-xl p-4 text-center">
+            <p class="text-xs text-blue-400 mb-1">월정기 (주간)</p>
+            <p class="text-sm font-bold text-blue-700">{matchedFee.주간월정기권}</p>
+          </div>
+        )}
+        {matchedFee.야간월정기권 && (
+          <div class="bg-blue-50 rounded-xl p-4 text-center">
+            <p class="text-xs text-blue-400 mb-1">월정기 (야간)</p>
+            <p class="text-sm font-bold text-blue-700">{matchedFee.야간월정기권}</p>
+          </div>
+        )}
+        {matchedFee.전일월정기권 && (
+          <div class="bg-blue-50 rounded-xl p-4 text-center">
+            <p class="text-xs text-blue-400 mb-1">월정기 (전일)</p>
+            <p class="text-sm font-bold text-blue-700">{matchedFee.전일월정기권}</p>
+          </div>
+        )}
+        {matchedFee.월정기권 && (
+          <div class="bg-blue-50 rounded-xl p-4 text-center">
+            <p class="text-xs text-blue-400 mb-1">월정기권</p>
+            <p class="text-sm font-bold text-blue-700">{matchedFee.월정기권}</p>
           </div>
         )}
       </div>
+    ) : (
+      <div class="bg-gray-50 rounded-xl p-5 text-center">
+        <p class="text-gray-500">요금 정보는 {gongdanOrg || sigungu + ' 관리공단'}에 문의해주세요</p>
+        {gongdanPhone && <p class="text-sm text-emerald-600 mt-1"><a href={`tel:${gongdanPhone}`}>{gongdanPhone}</a></p>}
+      </div>
     )}
+    <p class="text-xs text-gray-400 mt-3">* {gongdanOrg || sigungu + ' 시설관리공단'} 기준 요금이며, 실제와 다를 수 있습니다</p>
   </section>
 
+  {/* ━━━ 할인/감면 정보 (공단주소) ━━━ */}
+  {discountInfo && (
+    <section class="border border-gray-200 rounded-2xl p-5 mb-4">
+      <h2 class="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+        <svg class="w-5 h-5 text-rose-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"/></svg>
+        {sigungu} 공영주차장 할인/감면 정보
+      </h2>
+
+      {discountInfo.type === 'simple' && (
+        <ul class="space-y-2">
+          {discountInfo.items.map((item: string) => (
+            <li class="flex items-start gap-2 text-sm text-gray-700">
+              <svg class="w-4 h-4 text-rose-400 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+              {item}
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {discountInfo.type === 'object' && (
+        <div class="space-y-2">
+          {discountInfo.items.map((d: any) => (
+            <div class="flex items-center gap-3 p-3 bg-gray-50 rounded-xl">
+              <span class={`px-2 py-0.5 text-xs font-bold rounded-md shrink-0 ${
+                String(d.감면율 || d.할인율 || '').includes('면제') || String(d.감면율 || d.할인율 || '').includes('100') ? 'bg-purple-100 text-purple-700' :
+                String(d.감면율 || d.할인율 || '').includes('80') ? 'bg-rose-100 text-rose-700' :
+                String(d.감면율 || d.할인율 || '').includes('50') ? 'bg-amber-100 text-amber-700' :
+                'bg-sky-100 text-sky-700'
+              }`}>
+                {d.감면율 || d.할인율 || d.감면 || '-'}
+              </span>
+              <div>
+                <p class="text-sm font-medium text-gray-900">{d.대상 || d.감면대상 || d.항목 || ''}</p>
+                {(d.기준 || d.비고) && <p class="text-xs text-gray-400 mt-0.5">{d.기준 || d.비고}</p>}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {discountInfo.type === 'structured' && (
+        <div class="space-y-2">
+          {discountInfo.items.map((d: any) => (
+            <div class="flex items-center gap-3 p-3 bg-gray-50 rounded-xl">
+              {d.구분 && (
+                <span class="px-2 py-0.5 text-xs font-bold rounded-md bg-rose-100 text-rose-700 shrink-0">{d.구분}</span>
+              )}
+              <div>
+                <p class="text-sm font-medium text-gray-900">{d.감면대상 || d.대상 || ''}</p>
+                {d.비고 && <p class="text-xs text-gray-400 mt-0.5">{d.비고}</p>}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <p class="text-xs text-gray-400 mt-3 border-t border-gray-100 pt-3">
+        {sigungu} 공영주차장 공통 할인/감면 기준입니다. 개별 주차장 적용 여부는 현장에서 확인하세요.
+      </p>
+    </section>
+  )}
+
   <!-- ━━━ 주변 시설 도보 접근 ━━━ -->
-  {item.nearbyPOIs && item.nearbyPOIs.length > 0 && (
+  {itemForDisplay.nearbyPOIs && itemForDisplay.nearbyPOIs.length > 0 && (
     <section class="mb-10">
       <h2 class="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
         <svg class="w-5 h-5 text-cyan-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg>
         주차 후 도보 접근 가능한 주요 시설
       </h2>
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        {item.nearbyPOIs.map((poi: any) => (
+        {itemForDisplay.nearbyPOIs.map((poi: any) => (
           <div class="flex items-center gap-3 p-3 bg-gray-50 rounded-xl">
             <div class="w-10 h-10 bg-cyan-100 rounded-full flex items-center justify-center shrink-0">
               <span class="text-cyan-600 text-sm font-bold">{poi.walkMin || '?'}분</span>
@@ -1047,40 +1278,96 @@ const images: string[] = item.images || [];
     )}
   </section>
 
+  {/* ━━━ 관리공단 연락처 ━━━ */}
+  {gongdanContact && (
+    <section class="border border-gray-200 rounded-2xl p-5 mb-4">
+      <h2 class="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+        <svg class="w-5 h-5 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>
+        {gongdanData?.공단명칭 || `${sigungu} 관리공단`} 안내
+      </h2>
+      <dl class="grid grid-cols-1 sm:grid-cols-2 gap-y-3 gap-x-6">
+        {gongdanContact.대표전화 && (
+          <div class="flex gap-3">
+            <dt class="text-sm text-gray-400 w-20 shrink-0">대표전화</dt>
+            <dd class="text-sm text-gray-900 font-medium">
+              <a href={`tel:${gongdanContact.대표전화}`} class="text-emerald-600 hover:underline">{gongdanContact.대표전화}</a>
+            </dd>
+          </div>
+        )}
+        {gongdanContact.주차관련전화 && (
+          <div class="flex gap-3">
+            <dt class="text-sm text-gray-400 w-20 shrink-0">주차문의</dt>
+            <dd class="text-sm text-gray-900 font-medium">
+              <a href={`tel:${gongdanContact.주차관련전화}`} class="text-emerald-600 hover:underline">{gongdanContact.주차관련전화}</a>
+            </dd>
+          </div>
+        )}
+        {gongdanContact.홈페이지 && (
+          <div class="flex gap-3">
+            <dt class="text-sm text-gray-400 w-20 shrink-0">홈페이지</dt>
+            <dd class="text-sm text-gray-900 font-medium">
+              <a href={gongdanContact.홈페이지} target="_blank" rel="noopener noreferrer" class="text-emerald-600 hover:underline">바로가기 ↗</a>
+            </dd>
+          </div>
+        )}
+        {gongdanContact.주차포탈 && (
+          <div class="flex gap-3">
+            <dt class="text-sm text-gray-400 w-20 shrink-0">주차포탈</dt>
+            <dd class="text-sm text-gray-900 font-medium">
+              <a href={gongdanContact.주차포탈} target="_blank" rel="noopener noreferrer" class="text-emerald-600 hover:underline">바로가기 ↗</a>
+            </dd>
+          </div>
+        )}
+        {gongdanContact.주소 && (
+          <div class="flex gap-3">
+            <dt class="text-sm text-gray-400 w-20 shrink-0">주소</dt>
+            <dd class="text-sm text-gray-900 font-medium">{gongdanContact.주소}</dd>
+          </div>
+        )}
+      </dl>
+    </section>
+  )}
+
   <!-- ━━━ 데이터 출처 + 신뢰도 표시 ━━━ -->
   <footer class="bg-gray-50 rounded-2xl p-6 mb-4">
     <div class="flex items-center gap-2 mb-3">
       <svg class="w-4 h-4 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
-      <span class="text-sm font-bold text-gray-700">데이터 신뢰도</span>
+      <span class="text-sm font-bold text-gray-700">데이터 출처</span>
     </div>
     <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs text-gray-500 mb-4">
-      <div class="flex items-start gap-2">
-        <span class="text-gray-400 w-20 shrink-0">데이터 출처</span>
-        <span><a href="https://data.go.kr" target="_blank" rel="noopener" class="text-emerald-600 underline hover:text-emerald-700">공공데이터포털</a> 전국주차장정보 표준데이터</span>
-      </div>
-      <div class="flex items-start gap-2">
-        <span class="text-gray-400 w-20 shrink-0">데이터 기준일</span>
-        <span>{item.updatedAt || '정보 없음'}</span>
-      </div>
-      <div class="flex items-start gap-2">
-        <span class="text-gray-400 w-20 shrink-0">현장 확인일</span>
-        <span>{item.lastVerified || '확인 예정'}</span>
-      </div>
+      {gongdanOrg && (
+        <div class="flex items-start gap-2">
+          <span class="text-gray-400 w-20 shrink-0">관리공단</span>
+          <span class="font-medium text-gray-700">{gongdanOrg}</span>
+        </div>
+      )}
+      {gongdanSource && (
+        <div class="flex items-start gap-2">
+          <span class="text-gray-400 w-20 shrink-0">데이터 출처</span>
+          <span><a href={gongdanSource} target="_blank" rel="noopener" class="text-emerald-600 underline hover:text-emerald-700">{gongdanOrg || sigungu} 홈페이지</a></span>
+        </div>
+      )}
+      {gongdanCollectDate && (
+        <div class="flex items-start gap-2">
+          <span class="text-gray-400 w-20 shrink-0">수집일시</span>
+          <span>{gongdanCollectDate}</span>
+        </div>
+      )}
       <div class="flex items-start gap-2">
         <span class="text-gray-400 w-20 shrink-0">작성</span>
         <span>파킹맵 에디터</span>
       </div>
-      {item.phone && (
+      {gongdanPhone && (
         <div class="flex items-start gap-2">
-          <span class="text-gray-400 w-20 shrink-0">관리사무소</span>
-          <span><a href={`tel:${item.phone}`} class="text-emerald-600 underline hover:text-emerald-700">{item.phone}</a></span>
+          <span class="text-gray-400 w-20 shrink-0">문의전화</span>
+          <span><a href={`tel:${gongdanPhone}`} class="text-emerald-600 underline hover:text-emerald-700">{gongdanPhone}</a></span>
         </div>
       )}
     </div>
     <div class="border-t border-gray-200 pt-3 flex flex-col sm:flex-row items-center justify-between gap-2">
       <p class="text-xs text-gray-400">실제 운영 상황과 다를 수 있으니 방문 전 확인을 권장합니다</p>
       <a
-        href={`mailto:info@parkingmap.kr?subject=${encodeURIComponent(`[정보수정] ${displayName} 주차장`)}&body=${encodeURIComponent(`주차장명: ${displayName}\n주소: ${item.roadAddress || item.address}\n\n수정 내용:\n`)}`}
+        href={`mailto:info@parkingmap.kr?subject=${encodeURIComponent(`[정보수정] ${displayName} 주차장`)}&body=${encodeURIComponent(`주차장명: ${displayName}\n주소: ${gongdanAddress}\n\n수정 내용:\n`)}`}
         class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-gray-500 bg-white border border-gray-200 rounded-lg hover:border-emerald-300 hover:text-emerald-600 transition-colors"
       >
         <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"/></svg>
@@ -1090,15 +1377,20 @@ const images: string[] = item.images || [];
   </footer>
 
   <!-- ━━━ 네이버 지도 스크립트 ━━━ -->
-  <script define:vars={{ item: JSON.parse(JSON.stringify(item)) }}>
+  <script define:vars={{ mapItem: JSON.parse(JSON.stringify({ lat: itemForDisplay.lat, lng: itemForDisplay.lng, name: displayName, address: gongdanAddress, isFree: itemForDisplay.isFree })) }}>
     function initDetailMap() {
+      if (!mapItem.lat || !mapItem.lng) {
+        document.getElementById('naver-map').innerHTML = '<p class="text-gray-400 text-sm">좌표 정보가 없어 지도를 표시할 수 없습니다. 외부 지도 링크를 이용해주세요.</p>';
+        return;
+      }
+
       if (typeof naver === 'undefined' || !naver.maps) {
         document.getElementById('naver-map').innerHTML = '<p class="text-gray-400">네이버 지도를 불러올 수 없습니다</p>';
         return;
       }
 
-      var position = new naver.maps.LatLng(item.lat, item.lng);
-      var color = item.isFree ? '#10b981' : '#3b82f6';
+      var position = new naver.maps.LatLng(mapItem.lat, mapItem.lng);
+      var color = mapItem.isFree ? '#10b981' : '#3b82f6';
 
       var map = new naver.maps.Map('naver-map', {
         center: position,
@@ -1116,11 +1408,10 @@ const images: string[] = item.images || [];
         },
       });
 
-      var displayName = item.name;
       var infoWindow = new naver.maps.InfoWindow({
         content: '<div style="padding:12px 16px;min-width:200px;font-size:13px;line-height:1.5;">' +
-          '<strong style="font-size:14px;">' + displayName + '</strong><br>' +
-          '<span style="color:#666;">' + item.address + '</span>' +
+          '<strong style="font-size:14px;">' + mapItem.name + '</strong><br>' +
+          '<span style="color:#666;">' + mapItem.address + '</span>' +
           '</div>',
         borderWidth: 0,
         borderColor: 'transparent',
