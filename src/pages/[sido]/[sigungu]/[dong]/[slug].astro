@@ -32,7 +32,13 @@ export function getStaticPaths() {
     const files = fs.readdirSync(sidoDir).filter((f: string) => f.endsWith('.json'));
 
     // 현재 활성화된 시군구 목록 (데이터 검증 완료된 지역)
-    const ACTIVE_SIGUNGUS = ['강동구'];
+    const ACTIVE_SIGUNGUS = [
+      '강남구', '강동구', '강북구', '강서구', '관악구',
+      '광진구', '구로구', '금천구', '노원구', '도봉구',
+      '동대문구', '동작구', '마포구', '서대문구', '서초구',
+      '성동구', '성북구', '송파구', '양천구', '영등포구',
+      '용산구', '은평구', '종로구', '중구', '중랑구',
+    ];
 
     for (const file of files) {
       const sigungu = file.replace('.json', '');

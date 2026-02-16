@@ -32,7 +32,13 @@ export function getStaticPaths() {
 const { sido, sigungu } = Astro.params;
 
 // 현재 활성화된 시군구 목록 (데이터 검증 완료된 지역)
-const ACTIVE_SIGUNGUS = ['강동구'];
+const ACTIVE_SIGUNGUS = [
+  '강남구', '강동구', '강북구', '강서구', '관악구',
+  '광진구', '구로구', '금천구', '노원구', '도봉구',
+  '동대문구', '동작구', '마포구', '서대문구', '서초구',
+  '성동구', '성북구', '송파구', '양천구', '영등포구',
+  '용산구', '은평구', '종로구', '중구', '중랑구',
+];
 const isActive = ACTIVE_SIGUNGUS.includes(sigungu!);
 
 const jsonPath = path.join(process.cwd(), 'content', 'parking', sido!, `${sigungu}.json`);
@@ -60,6 +66,85 @@ function toSlug(name: string): string {
     .replace(/-+/g, '-')
     .replace(/^-|-$/g, '');
 }
+
+// 공단주소 데이터 로딩
+let gongdanData: any = null;
+const gongdanPath = path.join(process.cwd(), 'data', '공단주소', `${sigungu}.json`);
+if (fs.existsSync(gongdanPath)) {
+  gongdanData = JSON.parse(fs.readFileSync(gongdanPath, 'utf-8'));
+}
+
+// 노상/노외/부설/시설 개소수 추출
+function extractParkingSummary(data: any) {
+  const summary: { label: string; count: number; total?: number }[] = [];
+  const nosang = data.공영주차장?.노상주차장 || data.노상주차장;
+  const nooe = data.공영주차장?.노외주차장 || data.노외주차장;
+  const buseol = data.공영주차장?.부설주차장 || data.부설주차장;
+  const sisel = data.시설주차장;
+  if (nosang?.개소수) summary.push({ label: '노상', count: nosang.개소수, total: nosang.총주차면수 });
+  if (nooe?.개소수) summary.push({ label: '노외', count: nooe.개소수, total: nooe.총주차면수 });
+  if (buseol?.개소수) summary.push({ label: '부설', count: buseol.개소수 });
+  if (sisel?.개소수) summary.push({ label: '시설', count: sisel.개소수, total: sisel.총주차면수 });
+  return summary;
+}
+
+// 요금정보 추출
+function extractFeeInfo(data: any) {
+  const fee = data.요금정보;
+  if (!fee || Object.keys(fee).length === 0) return null;
+
+  // 급지별 (강남구/중랑구): 노외주차장/노상주차장 키
+  if (fee.노외주차장 || fee.노상주차장) {
+    return { type: 'grade' as const, data: fee };
+  }
+  // 급지별 변형 (중구): 노외주차장_급지별/노상주차장_급지별
+  const gradeKeys = Object.keys(fee).filter(k => k.includes('급지별'));
+  if (gradeKeys.length > 0) {
+    const gradeData: Record<string, any> = {};
+    for (const k of gradeKeys) gradeData[k.replace(/_급지별/g, '')] = fee[k];
+    return { type: 'grade' as const, data: gradeData };
+  }
+  // 정기권 (서대문구)
+  if (fee.정기권) {
+    return { type: 'monthly' as const, data: fee.정기권 };
+  }
+  // 기타 구조 (도봉구, 성북구, 은평구 등): 그대로 key-value 표시
+  return { type: 'general' as const, data: fee };
+}
+
+// 할인/감면정보 추출
+function extractDiscountInfo(data: any) {
+  if (data.할인정보 && Array.isArray(data.할인정보)) {
+    // 문자열 배열 (강남구 패턴) vs 객체 배열 (서대문구 패턴) 구분
+    if (data.할인정보.length > 0 && typeof data.할인정보[0] === 'object') {
+      return { type: 'object' as const, items: data.할인정보 };
+    }
+    return { type: 'simple' as const, items: data.할인정보 };
+  }
+  const nosang = data.공영주차장?.노상주차장 || data.노상주차장;
+  const nooe = data.공영주차장?.노외주차장 || data.노외주차장;
+  const src = nosang?.감면정보 || nooe?.감면정보;
+  if (src && Array.isArray(src)) {
+    return { type: 'structured' as const, items: src };
+  }
+  return null;
+}
+
+// 거주자우선주차 정보 추출
+function extractResidentParking(data: any) {
+  return data.거주자우선주차 || data.거주자우선주차장 || null;
+}
+
+// 연락처 추출
+function extractContact(data: any) {
+  return data.연락처 || null;
+}
+
+const parkingSummary = gongdanData ? extractParkingSummary(gongdanData) : [];
+const feeInfo = gongdanData ? extractFeeInfo(gongdanData) : null;
+const discountInfo = gongdanData ? extractDiscountInfo(gongdanData) : null;
+const residentParking = gongdanData ? extractResidentParking(gongdanData) : null;
+const contactInfo = gongdanData ? extractContact(gongdanData) : null;
 
 const title = `${sigungu} 무료주차장 · 공영주차장 지도 - 위치·요금 안내 | 주차장 지도`;
 const description = `${sigungu} 무료주차장 ${freeCount}곳, 유료주차장 ${paidCount}곳 위치·요금·운영시간 안내. ${dongList.slice(0, 5).map(([d]) => d).join(', ')} 등 동별 주차장 검색.`;
@@ -223,6 +308,308 @@ const breadcrumbs = [
 
         <!-- 페이지네이션 -->
         <div id="pagination" class="flex items-center justify-center gap-1 mb-8"></div>
+
+        {/* ━━━ 공단 주차장 현황 요약 ━━━ */}
+        {gongdanData && parkingSummary.length > 0 && (
+          <div class="mb-6">
+            <h2 class="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+              <svg class="w-5 h-5 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+              {sigungu} 공영주차장 현황
+            </h2>
+            <div class={`grid gap-3 ${parkingSummary.length === 4 ? 'grid-cols-4' : 'grid-cols-3'}`}>
+              {parkingSummary.map((item) => (
+                <div class="bg-gray-50 rounded-xl p-4 text-center">
+                  <p class="text-2xl font-black text-gray-900">{item.count}</p>
+                  <p class="text-xs text-gray-500 mt-1">{item.label}주차장</p>
+                  {item.total && <p class="text-xs text-gray-400 mt-0.5">{item.total.toLocaleString()}면</p>}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* ━━━ 요금표 ━━━ */}
+        {feeInfo && feeInfo.type === 'grade' && (
+          <div class="border border-gray-200 rounded-2xl p-5 mb-6">
+            <h2 class="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+              <svg class="w-5 h-5 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+              {sigungu} 공영주차장 요금표
+            </h2>
+            {Object.entries(feeInfo.data).map(([category, grades]: [string, any]) => (
+              <div class="mb-4 last:mb-0">
+                <h3 class="text-sm font-bold text-gray-700 mb-2">{category}</h3>
+                <div class="overflow-x-auto">
+                  <table class="w-full text-sm">
+                    <thead>
+                      <tr class="border-b border-gray-200 text-left">
+                        <th class="py-2 pr-3 text-gray-400 font-medium text-xs">급지</th>
+                        {Object.keys(Object.values(grades)[0] as any).map((col: string) => (
+                          <th class="py-2 px-2 text-gray-400 font-medium text-xs text-center">{col.replace(/_/g, ' ')}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {Object.entries(grades).map(([grade, fees]: [string, any]) => (
+                        <tr class="border-b border-gray-100">
+                          <td class="py-2.5 pr-3 font-semibold text-gray-700 text-xs">{grade}</td>
+                          {Object.values(fees).map((val: any) => (
+                            <td class="py-2.5 px-2 text-center text-xs text-gray-600">{val}</td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {feeInfo && feeInfo.type === 'monthly' && (
+          <div class="border border-gray-200 rounded-2xl p-5 mb-6">
+            <h2 class="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+              <svg class="w-5 h-5 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+              {sigungu} 공영주차장 정기권 요금
+            </h2>
+            <div class="space-y-2">
+              {Object.entries(feeInfo.data).map(([label, price]: [string, any]) => (
+                <div class="flex items-center justify-between p-3 bg-gray-50 rounded-xl">
+                  <span class="text-sm font-medium text-gray-700">{label}</span>
+                  <span class="text-sm font-bold text-gray-900">{price}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {feeInfo && feeInfo.type === 'general' && (
+          <div class="border border-gray-200 rounded-2xl p-5 mb-6">
+            <h2 class="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+              <svg class="w-5 h-5 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+              {sigungu} 공영주차장 요금 안내
+            </h2>
+            <div class="space-y-4">
+              {Object.entries(feeInfo.data).map(([key, val]: [string, any]) => (
+                typeof val === 'string' ? (
+                  <div class="flex items-center justify-between p-3 bg-gray-50 rounded-xl">
+                    <span class="text-sm font-medium text-gray-700">{key.replace(/_/g, ' ')}</span>
+                    <span class="text-sm font-bold text-gray-900">{val}</span>
+                  </div>
+                ) : typeof val === 'object' && val !== null ? (
+                  <div class="bg-gray-50 rounded-xl p-4">
+                    <h3 class="text-sm font-bold text-gray-700 mb-2">{key.replace(/_/g, ' ')}</h3>
+                    {Object.entries(val).map(([subKey, subVal]: [string, any]) => (
+                      typeof subVal === 'string' ? (
+                        <div class="flex items-center justify-between py-1.5 border-b border-gray-100 last:border-0">
+                          <span class="text-xs text-gray-500">{subKey}</span>
+                          <span class="text-xs font-semibold text-gray-700">{subVal}</span>
+                        </div>
+                      ) : typeof subVal === 'object' && subVal !== null ? (
+                        <div class="mt-2">
+                          <p class="text-xs text-gray-400 mb-1">{subKey}</p>
+                          {Object.entries(subVal).map(([k, v]: [string, any]) => (
+                            <div class="flex items-center justify-between py-1 border-b border-gray-100 last:border-0">
+                              <span class="text-xs text-gray-500">{k}</span>
+                              <span class="text-xs font-semibold text-gray-700">{String(v)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      ) : null
+                    ))}
+                  </div>
+                ) : null
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* ━━━ 할인/감면 정보 ━━━ */}
+        {discountInfo && (
+          <div class="border border-gray-200 rounded-2xl p-5 mb-6">
+            <h2 class="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+              <svg class="w-5 h-5 text-rose-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"/></svg>
+              주차요금 할인/감면 정보
+            </h2>
+            {discountInfo.type === 'simple' ? (
+              <div class="flex flex-wrap gap-2">
+                {discountInfo.items.map((item: string) => {
+                  const badgeColor = item.includes('80%') ? 'bg-rose-50 text-rose-700 border-rose-200'
+                    : item.includes('50%') ? 'bg-amber-50 text-amber-700 border-amber-200'
+                    : item.includes('면제') || item.includes('100%') ? 'bg-purple-50 text-purple-700 border-purple-200'
+                    : 'bg-gray-50 text-gray-700 border-gray-200';
+                  return (
+                    <span class={`inline-flex items-center px-3 py-1.5 text-xs font-medium rounded-lg border ${badgeColor}`}>
+                      {item}
+                    </span>
+                  );
+                })}
+              </div>
+            ) : discountInfo.type === 'object' ? (
+              <div class="space-y-2">
+                {discountInfo.items.map((item: any) => {
+                  const rate = item.감면율 || '';
+                  const badgeColor = rate.includes('80') ? 'bg-rose-50 text-rose-700 border-rose-200'
+                    : rate.includes('100') ? 'bg-purple-50 text-purple-700 border-purple-200'
+                    : rate.includes('50') ? 'bg-amber-50 text-amber-700 border-amber-200'
+                    : rate.includes('20') ? 'bg-sky-50 text-sky-700 border-sky-200'
+                    : 'bg-gray-50 text-gray-700 border-gray-200';
+                  return (
+                    <div class={`flex items-start gap-3 p-3 rounded-xl border ${badgeColor}`}>
+                      <span class="shrink-0 px-2 py-0.5 text-xs font-bold rounded-md bg-white/60">{rate}</span>
+                      <div class="flex-1 min-w-0">
+                        <p class="text-sm font-medium">{item.대상}{item.사용자 ? ` (${item.사용자})` : ''}</p>
+                        {item.기준 && <p class="text-xs opacity-70 mt-0.5">{item.기준}</p>}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div class="space-y-2">
+                {discountInfo.items.map((item: any) => {
+                  const badgeColor = item.구분?.includes('80%') ? 'bg-rose-50 text-rose-700 border-rose-200'
+                    : item.구분?.includes('50%') ? 'bg-amber-50 text-amber-700 border-amber-200'
+                    : item.구분?.includes('면제') ? 'bg-purple-50 text-purple-700 border-purple-200'
+                    : item.구분?.includes('20%') ? 'bg-sky-50 text-sky-700 border-sky-200'
+                    : 'bg-gray-50 text-gray-700 border-gray-200';
+                  return (
+                    <div class={`flex items-start gap-3 p-3 rounded-xl border ${badgeColor}`}>
+                      <span class="shrink-0 px-2 py-0.5 text-xs font-bold rounded-md bg-white/60">{item.구분}</span>
+                      <div class="flex-1 min-w-0">
+                        <p class="text-sm font-medium">{item.감면대상}</p>
+                        {item.비고 && item.비고 !== '-' && <p class="text-xs opacity-70 mt-0.5">{item.비고}</p>}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ━━━ 거주자우선주차 정보 ━━━ */}
+        {residentParking && (
+          <div class="border border-gray-200 rounded-2xl p-5 mb-6">
+            <h2 class="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+              <svg class="w-5 h-5 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
+              거주자우선주차 안내
+            </h2>
+            {residentParking.이용시간_및_운영요금 && (
+              <div class="mb-4">
+                <h3 class="text-sm font-bold text-gray-700 mb-2">이용시간 및 요금</h3>
+                <div class="overflow-x-auto">
+                  <table class="w-full text-sm">
+                    <thead>
+                      <tr class="border-b border-gray-200 text-left">
+                        <th class="py-2 pr-3 text-gray-400 font-medium text-xs">구분</th>
+                        <th class="py-2 px-2 text-gray-400 font-medium text-xs text-center">이용시간</th>
+                        <th class="py-2 px-2 text-gray-400 font-medium text-xs text-center">이용요일</th>
+                        <th class="py-2 px-2 text-gray-400 font-medium text-xs text-center">주차요금</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {Object.keys(residentParking.이용시간_및_운영요금.이용시간 || {}).map((key: string) => (
+                        <tr class="border-b border-gray-100">
+                          <td class="py-2.5 pr-3 font-semibold text-gray-700 text-xs">{key}</td>
+                          <td class="py-2.5 px-2 text-center text-xs text-gray-600">{residentParking.이용시간_및_운영요금.이용시간[key]}</td>
+                          <td class="py-2.5 px-2 text-center text-xs text-gray-600">{residentParking.이용시간_및_운영요금.이용요일?.[key] || '-'}</td>
+                          <td class="py-2.5 px-2 text-center text-xs text-gray-600 font-semibold">{residentParking.이용시간_및_운영요금.주차요금?.[key] || '-'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+            {residentParking.운영구획현황 && (
+              <p class="text-sm text-gray-600 mb-2">운영 현황: {residentParking.운영구획현황}{residentParking.노상주차장 ? ` / 노상 ${residentParking.노상주차장}` : ''}{residentParking.노외주차장 ? ` / 노외 ${residentParking.노외주차장}` : ''}</p>
+            )}
+            {residentParking.문의안내 && (
+              <div class="mt-3 pt-3 border-t border-gray-100">
+                <h3 class="text-sm font-bold text-gray-700 mb-2">문의 연락처</h3>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {Object.entries(residentParking.문의안내).slice(0, 6).map(([key, val]: [string, any]) => (
+                    <div class="flex gap-2 text-xs">
+                      <span class="text-gray-400 shrink-0 w-28 truncate" title={key}>{key}</span>
+                      <span class="text-gray-700 font-medium">{String(val).replace(/\n/g, ' / ')}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            {residentParking.홈페이지 && (
+              <div class="mt-3">
+                <a href={residentParking.홈페이지} target="_blank" rel="noopener" class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-indigo-600 bg-indigo-50 rounded-lg hover:bg-indigo-100 transition-colors">
+                  <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+                  거주자우선주차 포탈 바로가기
+                </a>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ━━━ 공단 연락처 카드 ━━━ */}
+        {gongdanData && (
+          <div class="border border-gray-200 rounded-2xl p-5 mb-6">
+            <h2 class="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+              <svg class="w-5 h-5 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>
+              {gongdanData.공단명칭 || `${sigungu} 주차 관리`}
+            </h2>
+            <dl class="grid grid-cols-1 sm:grid-cols-2 gap-y-3 gap-x-6">
+              {gongdanData.공단명칭 && (
+                <div class="flex gap-3">
+                  <dt class="text-sm text-gray-400 w-20 shrink-0">공단명칭</dt>
+                  <dd class="text-sm text-gray-900 font-medium">{gongdanData.공단명칭}</dd>
+                </div>
+              )}
+              {gongdanData.공단유형 && (
+                <div class="flex gap-3">
+                  <dt class="text-sm text-gray-400 w-20 shrink-0">유형</dt>
+                  <dd class="text-sm text-gray-900 font-medium">{gongdanData.공단유형}</dd>
+                </div>
+              )}
+              {(gongdanData.대표전화번호 || contactInfo?.대표전화번호) && (
+                <div class="flex gap-3">
+                  <dt class="text-sm text-gray-400 w-20 shrink-0">대표전화</dt>
+                  <dd class="text-sm text-gray-900 font-medium">
+                    <a href={`tel:${(gongdanData.대표전화번호 || contactInfo?.대표전화번호).replace(/[^0-9\-+]/g, '')}`} class="text-emerald-600 hover:underline">{gongdanData.대표전화번호 || contactInfo?.대표전화번호}</a>
+                  </dd>
+                </div>
+              )}
+              {contactInfo?.세부연락처 && (
+                <div class="flex gap-3">
+                  <dt class="text-sm text-gray-400 w-20 shrink-0">세부연락처</dt>
+                  <dd class="text-sm text-gray-700">{contactInfo.세부연락처}</dd>
+                </div>
+              )}
+              {contactInfo?.주소 && (
+                <div class="flex gap-3">
+                  <dt class="text-sm text-gray-400 w-20 shrink-0">주소</dt>
+                  <dd class="text-sm text-gray-900 font-medium">{contactInfo.주소}</dd>
+                </div>
+              )}
+              {(gongdanData.홈페이지 || contactInfo?.홈페이지) && (
+                <div class="flex gap-3">
+                  <dt class="text-sm text-gray-400 w-20 shrink-0">홈페이지</dt>
+                  <dd class="text-sm">
+                    <a href={gongdanData.홈페이지 || contactInfo?.홈페이지} target="_blank" rel="noopener" class="text-emerald-600 hover:underline break-all">{gongdanData.홈페이지 || contactInfo?.홈페이지}</a>
+                  </dd>
+                </div>
+              )}
+              {contactInfo?.주차포탈 && (
+                <div class="flex gap-3">
+                  <dt class="text-sm text-gray-400 w-20 shrink-0">주차포탈</dt>
+                  <dd class="text-sm">
+                    <a href={contactInfo.주차포탈} target="_blank" rel="noopener" class="text-emerald-600 hover:underline break-all">{contactInfo.주차포탈}</a>
+                  </dd>
+                </div>
+              )}
+            </dl>
+            {gongdanData.수집일시 && (
+              <p class="text-xs text-gray-400 mt-4 border-t border-gray-100 pt-3">데이터 수집일: {gongdanData.수집일시}</p>
+            )}
+          </div>
+        )}
 
         <!-- CTA: 메인 검색 페이지로 -->
         <div class="p-6 bg-emerald-50 rounded-2xl text-center mb-6">
