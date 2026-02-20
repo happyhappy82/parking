@@ -307,6 +307,15 @@ export const prerender = false;
     let allParkingLots = [];
     let filteredParkingLots = [];
     let currentEditingParking = null;
+
+    // 주차장명 → 슬러그 변환 ([slug].astro와 동일 로직)
+    function toSlug(name) {
+      return name
+        .replace(/\s+/g, '-')
+        .replace(/[^a-zA-Z0-9가-힣ㄱ-ㅎㅏ-ㅣ\-]/g, '')
+        .replace(/-+/g, '-')
+        .replace(/^-|-$/g, '');
+    }
     // 구별 원본 공단주소 JSON 캐시 (district → { data, sha })
     let gongdanCache = {};
     // 구별 노션 에디토리얼 캐시 (district → { 주차장명: editorial })
@@ -533,6 +542,9 @@ export const prerender = false;
 
       var lot = entry.lot;
       var fee = entry.fee;
+      var lotName = lot.주차장명 || lot.시설명 || '';
+      var autoSlug = toSlug(lotName) || 'parking';
+
       currentEditingParking = {
         district: entry.district,
         lot: lot,
@@ -541,6 +553,7 @@ export const prerender = false;
         index: entry.index,
         fee: fee,
         filteredIdx: filteredIdx,
+        slug: autoSlug,
       };
 
       var name = lot.주차장명 || lot.시설명 || '';
@@ -672,13 +685,7 @@ export const prerender = false;
       const grid = document.getElementById('photoGrid');
       grid.innerHTML = '<div style="text-align:center;padding:20px;color:#94a3b8;">불러오는 중...</div>';
 
-      const { district, lot } = currentEditingParking;
-      const slug = lot.slug;
-
-      if (!slug) {
-        grid.innerHTML = '<div style="text-align:center;padding:20px;color:#94a3b8;">이 주차장에는 아직 slug가 설정되지 않았습니다.</div>';
-        return;
-      }
+      const { district, slug } = currentEditingParking;
 
       try {
         const res = await fetch('/api/admin/parking-images/?district=' + encodeURIComponent(district) + '&slug=' + encodeURIComponent(slug));
@@ -718,10 +725,7 @@ export const prerender = false;
 
     async function handleFiles(files) {
       if (!currentEditingParking) return;
-      const { district, lot } = currentEditingParking;
-      const slug = lot.slug;
-
-      if (!slug) { showPhotoError('slug가 없습니다.'); return; }
+      const { district, slug } = currentEditingParking;
 
       const remaining = 10 - currentPhotos.length;
       const filesToProcess = Array.from(files).slice(0, remaining);
@@ -786,12 +790,12 @@ export const prerender = false;
     window.deletePhoto = async function(index) {
       const photo = currentPhotos[index];
       if (!photo || !confirm('"' + photo.name + '" 사진을 삭제하시겠습니까?')) return;
-      const { district, lot } = currentEditingParking;
+      const { district, slug } = currentEditingParking;
       try {
         const res = await fetch('/api/admin/parking-images/', {
           method: 'DELETE',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ district, slug: lot.slug, fileName: photo.name, sha: photo.sha }),
+          body: JSON.stringify({ district, slug, fileName: photo.name, sha: photo.sha }),
         });
         const result = await res.json();
         if (!res.ok) throw new Error(result.error);
