@@ -56,8 +56,75 @@ const jsonPath = path.join(process.cwd(), 'content', 'parking', sido!, `${sigung
 const raw = fs.readFileSync(jsonPath, 'utf-8');
 const data = JSON.parse(raw);
 
+// 공단주소 데이터 로딩 — 올바른 slug 매칭용
+function toSlugLocal(name: string): string {
+  return name
+    .replace(/\s+/g, '-')
+    .replace(/[^a-zA-Z0-9가-힣ㄱ-ㅎㅏ-ㅣ\-]/g, '')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '');
+}
+function normalizeParkingName(name: string): string {
+  return name.replace(/\s+/g, '').replace(/(공영주차장|노상주차장|부설주차장|주차장|공영)$/g, '').trim();
+}
+function extractAllLots(gd: any): { lot: any; category: string }[] {
+  const result: { lot: any; category: string }[] = [];
+  const sources: { path: any; cat: string }[] = [];
+  if (gd.노상주차장?.주차장목록 && Array.isArray(gd.노상주차장.주차장목록)) sources.push({ path: gd.노상주차장.주차장목록, cat: '노상' });
+  else if (Array.isArray(gd.노상주차장)) sources.push({ path: gd.노상주차장, cat: '노상' });
+  if (gd.노외주차장?.주차장목록 && Array.isArray(gd.노외주차장.주차장목록)) sources.push({ path: gd.노외주차장.주차장목록, cat: '노외' });
+  else if (Array.isArray(gd.노외주차장)) sources.push({ path: gd.노외주차장, cat: '노외' });
+  if (gd.부설주차장?.주차장목록 && Array.isArray(gd.부설주차장.주차장목록)) sources.push({ path: gd.부설주차장.주차장목록, cat: '부설' });
+  else if (Array.isArray(gd.부설주차장)) sources.push({ path: gd.부설주차장, cat: '부설' });
+  const gp = gd.공영주차장;
+  if (gp?.주차장목록) {
+    const ml = gp.주차장목록;
+    if (Array.isArray(ml.노외주차장)) sources.push({ path: ml.노외주차장, cat: '노외' });
+    if (Array.isArray(ml.노상주차장)) sources.push({ path: ml.노상주차장, cat: '노상' });
+    if (Array.isArray(ml.부설주차장)) sources.push({ path: ml.부설주차장, cat: '부설' });
+    if (Array.isArray(ml)) sources.push({ path: ml, cat: '공영' });
+  }
+  if (gp?.노외주차장?.주차장목록 && Array.isArray(gp.노외주차장.주차장목록)) sources.push({ path: gp.노외주차장.주차장목록, cat: '노외' });
+  if (gp?.노상주차장?.주차장목록 && Array.isArray(gp.노상주차장.주차장목록)) sources.push({ path: gp.노상주차장.주차장목록, cat: '노상' });
+  if (gp?.부설주차장 && Array.isArray(gp.부설주차장)) sources.push({ path: gp.부설주차장, cat: '부설' });
+  for (const { path: arr, cat } of sources) {
+    if (Array.isArray(arr)) {
+      for (const lot of arr) {
+        if (typeof lot === 'object' && (lot.주차장명 || lot.시설명)) result.push({ lot, category: cat });
+      }
+    }
+  }
+  return result;
+}
+
+// 공단주소 기반 slug 맵 빌드: normalized name → toSlug(공단주소 주차장명)
+const slugMap = new Map<string, string>();
+const gongdanPath = path.join(process.cwd(), 'data', '공단주소', `${sigungu}.json`);
+if (fs.existsSync(gongdanPath)) {
+  try {
+    const gongdanData = JSON.parse(fs.readFileSync(gongdanPath, 'utf-8'));
+    const allGongdanLots = extractAllLots(gongdanData);
+    for (const { lot } of allGongdanLots) {
+      const lotName = lot.주차장명 || lot.시설명 || '';
+      const norm = normalizeParkingName(lotName);
+      if (norm) slugMap.set(norm, toSlugLocal(lotName));
+    }
+  } catch {}
+}
+
+// content/parking 아이템에 공단주소 slug 매칭
+function findGongdanSlug(itemName: string): string | undefined {
+  const norm = normalizeParkingName(itemName);
+  if (slugMap.has(norm)) return slugMap.get(norm);
+  for (const [key, slug] of slugMap) {
+    if (key && norm && (norm.includes(key) || key.includes(norm))) return slug;
+  }
+  return undefined;
+}
+
 const items = data.items
   .filter((item: any) => item.dong === dong)
+  .map((item: any) => ({ ...item, slug: findGongdanSlug(item.name) }))
   .sort((a: any, b: any) => b.totalSpaces - a.totalSpaces);
 
 const freeCount = items.filter((i: any) => i.isFree).length;

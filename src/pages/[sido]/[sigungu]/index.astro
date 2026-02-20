@@ -74,6 +74,61 @@ if (fs.existsSync(gongdanPath)) {
   gongdanData = JSON.parse(fs.readFileSync(gongdanPath, 'utf-8'));
 }
 
+// 공단주소에서 모든 주차장목록 추출 — slug 매칭용
+function extractAllLots(gd: any): { lot: any; category: string }[] {
+  const result: { lot: any; category: string }[] = [];
+  const sources: { path: any; cat: string }[] = [];
+  if (gd.노상주차장?.주차장목록 && Array.isArray(gd.노상주차장.주차장목록)) sources.push({ path: gd.노상주차장.주차장목록, cat: '노상' });
+  else if (Array.isArray(gd.노상주차장)) sources.push({ path: gd.노상주차장, cat: '노상' });
+  if (gd.노외주차장?.주차장목록 && Array.isArray(gd.노외주차장.주차장목록)) sources.push({ path: gd.노외주차장.주차장목록, cat: '노외' });
+  else if (Array.isArray(gd.노외주차장)) sources.push({ path: gd.노외주차장, cat: '노외' });
+  if (gd.부설주차장?.주차장목록 && Array.isArray(gd.부설주차장.주차장목록)) sources.push({ path: gd.부설주차장.주차장목록, cat: '부설' });
+  else if (Array.isArray(gd.부설주차장)) sources.push({ path: gd.부설주차장, cat: '부설' });
+  const gp = gd.공영주차장;
+  if (gp?.주차장목록) {
+    const ml = gp.주차장목록;
+    if (Array.isArray(ml.노외주차장)) sources.push({ path: ml.노외주차장, cat: '노외' });
+    if (Array.isArray(ml.노상주차장)) sources.push({ path: ml.노상주차장, cat: '노상' });
+    if (Array.isArray(ml.부설주차장)) sources.push({ path: ml.부설주차장, cat: '부설' });
+    if (Array.isArray(ml)) sources.push({ path: ml, cat: '공영' });
+  }
+  if (gp?.노외주차장?.주차장목록 && Array.isArray(gp.노외주차장.주차장목록)) sources.push({ path: gp.노외주차장.주차장목록, cat: '노외' });
+  if (gp?.노상주차장?.주차장목록 && Array.isArray(gp.노상주차장.주차장목록)) sources.push({ path: gp.노상주차장.주차장목록, cat: '노상' });
+  if (gp?.부설주차장 && Array.isArray(gp.부설주차장)) sources.push({ path: gp.부설주차장, cat: '부설' });
+  for (const { path: arr, cat } of sources) {
+    if (Array.isArray(arr)) {
+      for (const lot of arr) {
+        if (typeof lot === 'object' && (lot.주차장명 || lot.시설명)) result.push({ lot, category: cat });
+      }
+    }
+  }
+  return result;
+}
+
+function normalizeParkingName(name: string): string {
+  return name.replace(/\s+/g, '').replace(/(공영주차장|노상주차장|부설주차장|주차장|공영)$/g, '').trim();
+}
+
+// 공단주소 기반 slug 맵 빌드: normalized name → toSlug(공단주소 주차장명)
+const gongdanSlugMap = new Map<string, string>();
+if (gongdanData) {
+  const allGongdanLots = extractAllLots(gongdanData);
+  for (const { lot } of allGongdanLots) {
+    const lotName = lot.주차장명 || lot.시설명 || '';
+    const norm = normalizeParkingName(lotName);
+    if (norm) gongdanSlugMap.set(norm, toSlug(lotName));
+  }
+}
+
+function findGongdanSlug(itemName: string): string | undefined {
+  const norm = normalizeParkingName(itemName);
+  if (gongdanSlugMap.has(norm)) return gongdanSlugMap.get(norm);
+  for (const [key, slug] of gongdanSlugMap) {
+    if (key && norm && (norm.includes(key) || key.includes(norm))) return slug;
+  }
+  return undefined;
+}
+
 // 노상/노외/부설/시설 개소수 추출
 function extractParkingSummary(data: any) {
   const summary: { label: string; count: number; total?: number }[] = [];
@@ -237,12 +292,12 @@ const breadcrumbs = [
         <div id="parking-cards" class="flex flex-col gap-4 mb-2">
           {items.length > 0 ? (
             items.map((lot: any, i: number) => (
-              <div class="parking-card p-5 border border-gray-200 rounded-2xl hover:border-emerald-200 hover:shadow-md transition-all cursor-pointer" data-index={i} data-isfree={lot.isFree ? 'true' : 'false'} data-href={lot.dong ? `/${encodeURIComponent(sido!)}/${encodeURIComponent(sigungu!)}/${encodeURIComponent(lot.dong)}/${encodeURIComponent(toSlug(lot.name))}/` : undefined}>
+              <div class="parking-card p-5 border border-gray-200 rounded-2xl hover:border-emerald-200 hover:shadow-md transition-all cursor-pointer" data-index={i} data-isfree={lot.isFree ? 'true' : 'false'} data-href={lot.dong ? `/${encodeURIComponent(sido!)}/${encodeURIComponent(sigungu!)}/${encodeURIComponent(lot.dong)}/${encodeURIComponent(findGongdanSlug(lot.name) || toSlug(lot.name))}/` : undefined}>
                 <div class="flex items-start justify-between gap-4">
                   <div class="flex-1 min-w-0">
                     <div class="flex items-center gap-2 mb-1.5 flex-wrap">
                       {lot.dong ? (
-                        <a href={`/${encodeURIComponent(sido!)}/${encodeURIComponent(sigungu!)}/${encodeURIComponent(lot.dong)}/${encodeURIComponent(toSlug(lot.name))}/`} class="font-bold text-gray-900 text-lg truncate hover:text-emerald-600 transition-colors">{lot.name}</a>
+                        <a href={`/${encodeURIComponent(sido!)}/${encodeURIComponent(sigungu!)}/${encodeURIComponent(lot.dong)}/${encodeURIComponent(findGongdanSlug(lot.name) || toSlug(lot.name))}/`} class="font-bold text-gray-900 text-lg truncate hover:text-emerald-600 transition-colors">{lot.name}</a>
                       ) : (
                         <h3 class="font-bold text-gray-900 text-lg truncate">{lot.name}</h3>
                       )}
