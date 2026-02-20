@@ -72,7 +72,7 @@ export function extractAllLots(data: any): { lot: any; category: string; parentD
   return result;
 }
 
-export function extractDong(lot: any, contentDong?: string | null, parentDong?: string | null): string | null {
+export function extractDong(lot: any, _unused?: string | null, parentDong?: string | null): string | null {
   // 도봉구: 지역 필드 (쌍문동, 방학동, 창동, 도봉동)
   if (lot.지역 && /[가-힣]+\d*동$/.test(lot.지역)) return lot.지역;
   const addr = lot.위치 || lot.소재지 || lot.주소 || '';
@@ -99,8 +99,6 @@ export function extractDong(lot: any, contentDong?: string | null, parentDong?: 
   if (lot.동명) return lot.동명;
   // 동대문구: 부모 키가 동 이름인 경우
   if (parentDong) return parentDong;
-  // fallback: content/parking의 dong 필드
-  if (contentDong) return contentDong;
   return null;
 }
 
@@ -109,7 +107,6 @@ export interface GongdanLotEntry {
   category: string;
   dong: string | null;
   slug: string;
-  contentItem: any | null;
   feeEntry: any | null;
 }
 
@@ -121,29 +118,6 @@ export function loadGongdanSigungu(sigungu: string) {
   } catch {
     return null;
   }
-}
-
-export function loadContentParking(sido: string, sigungu: string) {
-  const contentPath = path.join(process.cwd(), 'content', 'parking', sido, `${sigungu}.json`);
-  if (!fs.existsSync(contentPath)) return null;
-  try {
-    return JSON.parse(fs.readFileSync(contentPath, 'utf-8'));
-  } catch {
-    return null;
-  }
-}
-
-// content/parking 아이템에서 역매칭 (보조 데이터: lat/lng/isFree 등)
-export function matchContentItem(lotName: string, contentItems: any[]): any | null {
-  const norm = normalizeParkingName(lotName);
-  for (const ci of contentItems) {
-    if (normalizeParkingName(ci.name) === norm) return ci;
-  }
-  for (const ci of contentItems) {
-    const ciNorm = normalizeParkingName(ci.name);
-    if (ciNorm && norm && (norm.includes(ciNorm) || ciNorm.includes(norm))) return ci;
-  }
-  return null;
 }
 
 // 요금정보에서 해당 주차장 찾기
@@ -163,21 +137,18 @@ export function matchFeeEntry(lotName: string, gongdanData: any): any | null {
   return null;
 }
 
-// 모든 공단주소 lot을 순회하며 contentItem 역매칭 + dong 추출 + slug 생성
+// 모든 공단주소 lot을 순회하며 dong 추출 + slug 생성
 export function buildGongdanEntries(
   gongdanData: any,
-  contentItems: any[],
 ): GongdanLotEntry[] {
   const allLots = extractAllLots(gongdanData);
   const entries: GongdanLotEntry[] = [];
   const slugCount = new Map<string, number>();
 
   for (const { lot, category, parentDong } of allLots) {
-    const lotName = lot.주차장명 || lot.시설명 || '';
-    const contentItem = matchContentItem(lotName, contentItems);
-    const dong = extractDong(lot, contentItem?.dong || null, parentDong || null);
+    const dong = extractDong(lot, null, parentDong || null);
 
-    let slug = toSlug(lotName);
+    let slug = toSlug(lot.주차장명 || lot.시설명 || '');
     if (!slug) slug = 'parking';
 
     // 중복 slug 처리
@@ -189,9 +160,9 @@ export function buildGongdanEntries(
       slugCount.set(slug, 1);
     }
 
-    const feeEntry = matchFeeEntry(lotName, gongdanData);
+    const feeEntry = matchFeeEntry(lot.주차장명 || lot.시설명 || '', gongdanData);
 
-    entries.push({ lot, category, dong, slug, contentItem, feeEntry });
+    entries.push({ lot, category, dong, slug, feeEntry });
   }
 
   return entries;

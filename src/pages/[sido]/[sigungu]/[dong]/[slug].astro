@@ -5,7 +5,7 @@ import { getCollection } from 'astro:content';
 import { getAllEditorials } from '../../../../utils/notion-editorial';
 import fs from 'node:fs';
 import path from 'node:path';
-import { toSlug, extractDong, loadGongdanSigungu, loadContentParking, buildGongdanEntries, matchFeeEntry, type GongdanLotEntry } from '../../../../utils/gongdan';
+import { toSlug, extractDong, loadGongdanSigungu, buildGongdanEntries, matchFeeEntry, type GongdanLotEntry } from '../../../../utils/gongdan';
 
 const naverClientId = import.meta.env.PUBLIC_NAVER_MAP_CLIENT_ID;
 
@@ -34,11 +34,8 @@ export async function getStaticPaths() {
     const gongdanData = loadGongdanSigungu(sigungu);
     if (!gongdanData) continue;
 
-    const contentData = loadContentParking(sido, sigungu);
-    const contentItems: any[] = contentData?.items || [];
-
-    // buildGongdanEntries로 전체 lot + slug + dong 생성
-    const allEntries = buildGongdanEntries(gongdanData, contentItems);
+    // buildGongdanEntries로 전체 lot + slug + dong 생성 (공단주소 데이터만 사용)
+    const allEntries = buildGongdanEntries(gongdanData);
     if (allEntries.length === 0) continue;
 
     // dong별 그룹핑 (dong이 null이면 "기타"로 처리)
@@ -56,7 +53,7 @@ export async function getStaticPaths() {
       for (const entry of dongEntries) {
         const lotName = entry.lot.주차장명 || entry.lot.시설명 || '';
 
-        // 같은 동의 다른 주차장 (nearbyEntries prop)
+        // 같은 동의 다른 주차장 (nearbyEntries prop, 공단주소 기반)
         const nearbyEntries = dongEntries
           .filter(e => e.slug !== entry.slug)
           .slice(0, 5)
@@ -65,17 +62,15 @@ export async function getStaticPaths() {
             slug: e.slug,
             category: e.category,
             spaces: e.lot.구획수 || e.lot.구획 || e.lot.면수 || null,
-            isFree: e.contentItem?.isFree || false,
+            isFree: (e.lot.주차요금 || '').includes('무료'),
             address: e.lot.위치 || e.lot.소재지 || e.lot.주소 || '',
-            totalSpaces: e.contentItem?.totalSpaces || null,
-            basicCharge: e.contentItem?.basicCharge || null,
-            feeInfo: e.contentItem?.feeInfo || null,
+            feeInfo: e.lot.주차요금 || null,
           }));
 
         paths.push({
           params: { sido, sigungu, dong, slug: entry.slug },
           props: {
-            item: entry.contentItem || null,
+            item: null,
             nearbyEntries,
             otherDongs: allDongs.filter(d => d !== dong).slice(0, 6),
             matchedLot: entry.lot,
@@ -128,17 +123,18 @@ const discountInfo = (() => {
 // 연락처 정보
 const gongdanContact = gongdanData?.연락처 || null;
 
-const displayName = matchedLot?.주차장명 || matchedLot?.시설명 || item?.name || '주차장';
+const displayName = matchedLot?.주차장명 || matchedLot?.시설명 || '주차장';
 
-// item이 없을 때 공단주소 기반 대체 객체 생성
-const itemForDisplay = item || {
+// 공단주소 기반 표시용 객체
+const parsedSpaces = parseInt(String(matchedLot?.구획수 || matchedLot?.구획 || matchedLot?.면수 || '0').replace(/[^0-9]/g, '')) || 0;
+const itemForDisplay = {
   name: displayName,
   address: matchedLot?.위치 || matchedLot?.소재지 || matchedLot?.주소 || '',
   roadAddress: matchedLot?.위치 || matchedLot?.소재지 || matchedLot?.주소 || '',
   lat: null,
   lng: null,
-  totalSpaces: 0,
-  isFree: false,
+  totalSpaces: parsedSpaces,
+  isFree: (matchedLot?.주차요금 || '').includes('무료'),
   phone: matchedLot?.연락처 || matchedLot?.전화번호 || gongdanData?.대표전화번호 || null,
   type: '공영',
   category: matchedCategory || '',
@@ -301,7 +297,7 @@ function generateFAQ(itemData: any, gLot: any, gFee: any, gCat: string | null, g
   // 만차 시 대안 FAQ
   if (nearbyLots && nearbyLots.length > 0) {
     const altList = nearbyLots.slice(0, 3).map((n: any, i: number) =>
-      `${i + 1}) ${n.name} (${n.totalSpaces ? n.totalSpaces + '면' : ''})`
+      `${i + 1}) ${n.name} (${n.spaces ? n.spaces + '면' : ''})`
     ).join(' ');
     faqs.push({
       q: `${name} 주차장이 만차일 때 근처 대안 주차장은?`,
@@ -684,7 +680,7 @@ const images: string[] = itemForDisplay.images || [];
           ? `파킹맵 에디터가 직접 작성한 리뷰입니다 (${editorial.updatedAt || ''}). 현장 상황과 다를 수 있으니 방문 전 확인을 권장합니다.`
           : EditorialContent
             ? '파킹맵 에디터가 직접 작성한 리뷰입니다. 현장 상황과 다를 수 있으니 방문 전 확인을 권장합니다.'
-            : '공공데이터포털(data.go.kr) 기반 파킹맵 에디터 작성. 현장 상황과 다를 수 있으니 방문 전 확인을 권장합니다.'}
+            : `${gongdanOrg || sigungu + ' 시설관리공단'} 홈페이지 직접 조사 기반 파킹맵 에디터 작성. 현장 상황과 다를 수 있으니 방문 전 확인을 권장합니다.`}
       </p>
     </div>
   </section>
@@ -1056,10 +1052,10 @@ const images: string[] = itemForDisplay.images || [];
                   </td>
                   <td class="py-3 px-3 text-center">
                     <span class={`px-2 py-0.5 text-xs font-semibold rounded ${nearby.isFree ? 'bg-emerald-50 text-emerald-600' : 'bg-blue-50 text-blue-600'}`}>
-                      {nearby.isFree ? '무료' : (nearby.basicCharge ? `${nearby.basicCharge.toLocaleString()}원` : '유료')}
+                      {nearby.isFree ? '무료' : (nearby.feeInfo || '유료')}
                     </span>
                   </td>
-                  <td class="py-3 px-3 text-center text-gray-600">{nearby.spaces || nearby.totalSpaces ? `${nearby.spaces || nearby.totalSpaces}면` : '-'}</td>
+                  <td class="py-3 px-3 text-center text-gray-600">{nearby.spaces ? `${nearby.spaces}면` : '-'}</td>
                   <td class="py-3 px-3 text-center text-gray-500 text-xs">{nearby.category || ''}</td>
                   <td class="py-3 pl-3 text-right">
                     <a href={`/${encodeURIComponent(sido!)}/${encodeURIComponent(sigungu!)}/${encodeURIComponent(dong!)}/${encodeURIComponent(nearby.slug)}/`} class="text-emerald-600 text-xs font-semibold hover:underline">
@@ -1083,7 +1079,7 @@ const images: string[] = itemForDisplay.images || [];
                 <span class={`w-2 h-2 rounded-full shrink-0 ${nearby.isFree ? 'bg-emerald-500' : 'bg-blue-500'}`}></span>
                 <div>
                   <p class="font-bold text-gray-900 text-sm">{nearby.name}</p>
-                  <p class="text-xs text-gray-400">{nearby.isFree ? '무료' : (nearby.basicCharge ? `기본 ${nearby.basicCharge.toLocaleString()}원` : nearby.feeInfo || '유료')}{nearby.spaces || nearby.totalSpaces ? ` · ${nearby.spaces || nearby.totalSpaces}면` : ''}</p>
+                  <p class="text-xs text-gray-400">{nearby.isFree ? '무료' : (nearby.feeInfo || '유료')}{nearby.spaces ? ` · ${nearby.spaces}면` : ''}</p>
                 </div>
               </div>
               <svg class="w-4 h-4 text-gray-300 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
