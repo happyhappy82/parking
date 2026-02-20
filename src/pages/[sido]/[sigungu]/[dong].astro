@@ -79,8 +79,18 @@ const breadcrumbs = [
 ];
 
 // 클라이언트 JS용 items 배열 (네이버 지도 마커용)
-// 공단주소에는 lat/lng가 없으므로 현재 지도 마커는 비어있음
-const mapItems: any[] = [];
+const mapItems = entries
+  .filter(e => e.lot.lat && e.lot.lng)
+  .map(e => ({
+    name: e.lot.주차장명 || e.lot.시설명 || '',
+    lat: e.lot.lat,
+    lng: e.lot.lng,
+    slug: e.slug,
+    category: e.category,
+    isFree: (e.lot.주차요금 || '').includes('무료'),
+    spaces: e.lot.면수 || e.lot.구획수 || null,
+    address: e.lot.위치 || e.lot.소재지 || e.lot.주소 || '',
+  }));
 ---
 
 <BaseLayout title={title} description={description} canonical={canonical} breadcrumbs={breadcrumbs}>
