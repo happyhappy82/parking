@@ -5,6 +5,7 @@ import { getCollection } from 'astro:content';
 import { getAllEditorials } from '../../../../utils/notion-editorial';
 import fs from 'node:fs';
 import path from 'node:path';
+import { toSlug, extractDong, loadGongdanSigungu, loadContentParking, buildGongdanEntries, matchFeeEntry, type GongdanLotEntry } from '../../../../utils/gongdan';
 
 const naverClientId = import.meta.env.PUBLIC_NAVER_MAP_CLIENT_ID;
 
@@ -17,110 +18,9 @@ export async function getStaticPaths() {
       editorialMap.set(`${ed.district}_${ed.parkingName}`, ed);
     }
   } catch {}
-  function toSlug(name: string): string {
-    return name
-      .replace(/\s+/g, '-')
-      .replace(/[^a-zA-Z0-9가-힣ㄱ-ㅎㅏ-ㅣ\-]/g, '')
-      .replace(/-+/g, '-')
-      .replace(/^-|-$/g, '');
-  }
-
-  // 이름 정규화: 공백 제거 + 접미사 제거
-  function normalizeParkingName(name: string): string {
-    return name
-      .replace(/\s+/g, '')
-      .replace(/(공영주차장|노상주차장|부설주차장|주차장|공영)$/g, '')
-      .trim();
-  }
-
-  // 공단주소에서 모든 주차장목록 추출
-  function extractAllLots(data: any): { lot: any; category: string }[] {
-    const result: { lot: any; category: string }[] = [];
-    const sources: { path: any; cat: string }[] = [];
-
-    if (data.노상주차장?.주차장목록 && Array.isArray(data.노상주차장.주차장목록)) {
-      sources.push({ path: data.노상주차장.주차장목록, cat: '노상' });
-    } else if (Array.isArray(data.노상주차장)) {
-      sources.push({ path: data.노상주차장, cat: '노상' });
-    }
-    if (data.노외주차장?.주차장목록 && Array.isArray(data.노외주차장.주차장목록)) {
-      sources.push({ path: data.노외주차장.주차장목록, cat: '노외' });
-    } else if (Array.isArray(data.노외주차장)) {
-      sources.push({ path: data.노외주차장, cat: '노외' });
-    }
-    if (data.부설주차장?.주차장목록 && Array.isArray(data.부설주차장.주차장목록)) {
-      sources.push({ path: data.부설주차장.주차장목록, cat: '부설' });
-    } else if (Array.isArray(data.부설주차장)) {
-      sources.push({ path: data.부설주차장, cat: '부설' });
-    }
-    const gongPark = data.공영주차장;
-    if (gongPark?.주차장목록) {
-      const ml = gongPark.주차장목록;
-      if (Array.isArray(ml.노외주차장)) sources.push({ path: ml.노외주차장, cat: '노외' });
-      if (Array.isArray(ml.노상주차장)) sources.push({ path: ml.노상주차장, cat: '노상' });
-      if (Array.isArray(ml.부설주차장)) sources.push({ path: ml.부설주차장, cat: '부설' });
-      if (Array.isArray(ml)) sources.push({ path: ml, cat: '공영' });
-    }
-    if (gongPark?.노외주차장?.주차장목록 && Array.isArray(gongPark.노외주차장.주차장목록)) {
-      sources.push({ path: gongPark.노외주차장.주차장목록, cat: '노외' });
-    }
-    if (gongPark?.노상주차장?.주차장목록 && Array.isArray(gongPark.노상주차장.주차장목록)) {
-      sources.push({ path: gongPark.노상주차장.주차장목록, cat: '노상' });
-    }
-    if (gongPark?.부설주차장 && Array.isArray(gongPark.부설주차장)) {
-      sources.push({ path: gongPark.부설주차장, cat: '부설' });
-    }
-
-    for (const { path: arr, cat } of sources) {
-      if (Array.isArray(arr)) {
-        for (const lot of arr) {
-          if (typeof lot === 'object' && (lot.주차장명 || lot.시설명)) {
-            result.push({ lot, category: cat });
-          }
-        }
-      }
-    }
-    return result;
-  }
-
-  // 매칭: item.name으로 공단주소 주차장 찾기
-  function matchLot(itemName: string, allLots: { lot: any; category: string }[]): { lot: any; category: string } | null {
-    const norm = normalizeParkingName(itemName);
-    for (const entry of allLots) {
-      const lotName = entry.lot.주차장명 || entry.lot.시설명 || '';
-      if (normalizeParkingName(lotName) === norm) return entry;
-    }
-    for (const entry of allLots) {
-      const lotName = normalizeParkingName(entry.lot.주차장명 || entry.lot.시설명 || '');
-      if (lotName && norm && (norm.includes(lotName) || lotName.includes(norm))) return entry;
-    }
-    return null;
-  }
-
-  // 주소/주차장명에서 동(dong) 추출
-  function extractDong(lot: any): string | null {
-    const addr = lot.위치 || lot.소재지 || lot.주소 || '';
-    // "(천호동)" or "(마천동 214)"
-    let m = addr.match(/\(([가-힣]+\d*동)/);
-    if (m) return m[1];
-    // "마포구 망원동 397-5" or "강서구 화곡1동"
-    m = addr.match(/[가-힣]+구\s+([가-힣]+\d*동)/);
-    if (m) return m[1];
-    // "고척동 241-21" (주소가 동으로 시작)
-    m = addr.match(/^([가-힣]+\d*동)\s/);
-    if (m) return m[1];
-    // 주차장명에서: "천호1동공영" → "천호1동", "남산동공영" → "남산동"
-    const name = lot.주차장명 || lot.시설명 || '';
-    m = name.match(/^([가-힣]+\d*동)/);
-    if (m) return m[1];
-    // 동명 필드 (용산구 등)
-    if (lot.동명) return lot.동명;
-    return null;
-  }
 
   // ─── 공단주소 기준으로 페이지 생성 ───
   const gongdanDir = path.join(process.cwd(), 'data', '공단주소');
-  const parkingDir = path.join(process.cwd(), 'content', 'parking');
   const paths: any[] = [];
   const sido = '서울특별시';
 
@@ -131,68 +31,55 @@ export async function getStaticPaths() {
   for (const file of gongdanFiles) {
     const sigungu = file.replace('.json', '');
 
-    // 공단주소 로드
-    let gongdanData: any = null;
-    try { gongdanData = JSON.parse(fs.readFileSync(path.join(gongdanDir, file), 'utf-8')); } catch { continue; }
-    const allGongdanLots = extractAllLots(gongdanData);
-    if (allGongdanLots.length === 0) continue;
+    const gongdanData = loadGongdanSigungu(sigungu);
+    if (!gongdanData) continue;
 
-    // content/parking 보조 데이터 로드 (optional - lat/lng 등)
-    let contentItems: any[] = [];
-    const contentPath = path.join(parkingDir, sido, `${sigungu}.json`);
-    if (fs.existsSync(contentPath)) {
-      try { contentItems = JSON.parse(fs.readFileSync(contentPath, 'utf-8')).items || []; } catch {}
+    const contentData = loadContentParking(sido, sigungu);
+    const contentItems: any[] = contentData?.items || [];
+
+    // buildGongdanEntries로 전체 lot + slug + dong 생성
+    const allEntries = buildGongdanEntries(gongdanData, contentItems);
+    if (allEntries.length === 0) continue;
+
+    // dong별 그룹핑 (dong이 null이면 "기타"로 처리)
+    const dongMap = new Map<string, GongdanLotEntry[]>();
+    for (const entry of allEntries) {
+      const d = entry.dong || '기타';
+      if (!dongMap.has(d)) dongMap.set(d, []);
+      dongMap.get(d)!.push(entry);
     }
 
-    // dong별 그룹핑
-    const dongMap = new Map<string, { lot: any; category: string; item: any }[]>();
+    // 전체 동 목록 (otherDongs prop용)
+    const allDongs = [...dongMap.keys()];
 
-    for (const entry of allGongdanLots) {
-      const dong = extractDong(entry.lot);
-      if (!dong) continue;
+    for (const [dong, dongEntries] of dongMap) {
+      for (const entry of dongEntries) {
+        const lotName = entry.lot.주차장명 || entry.lot.시설명 || '';
 
-      // content/parking에서 역매칭 (보조 데이터: lat/lng 등)
-      const lotName = entry.lot.주차장명 || entry.lot.시설명 || '';
-      const norm = normalizeParkingName(lotName);
-      let matchedItem: any = null;
-      for (const ci of contentItems) {
-        if (normalizeParkingName(ci.name) === norm) { matchedItem = ci; break; }
-      }
-      if (!matchedItem) {
-        for (const ci of contentItems) {
-          const ciNorm = normalizeParkingName(ci.name);
-          if (ciNorm && norm && (norm.includes(ciNorm) || ciNorm.includes(norm))) { matchedItem = ci; break; }
-        }
-      }
-
-      if (!dongMap.has(dong)) dongMap.set(dong, []);
-      dongMap.get(dong)!.push({ lot: entry.lot, category: entry.category, item: matchedItem });
-    }
-
-    for (const [dong, entries] of dongMap) {
-      const slugCount = new Map<string, number>();
-
-      for (const { lot, category, item } of entries) {
-        const lotName = lot.주차장명 || lot.시설명 || '';
-        let slug = toSlug(lotName);
-        if (!slug) slug = 'parking';
-
-        if (slugCount.has(slug)) {
-          const count = slugCount.get(slug)! + 1;
-          slugCount.set(slug, count);
-          slug = `${slug}-${count}`;
-        } else {
-          slugCount.set(slug, 1);
-        }
+        // 같은 동의 다른 주차장 (nearbyEntries prop)
+        const nearbyEntries = dongEntries
+          .filter(e => e.slug !== entry.slug)
+          .slice(0, 5)
+          .map(e => ({
+            name: e.lot.주차장명 || e.lot.시설명 || '',
+            slug: e.slug,
+            category: e.category,
+            spaces: e.lot.구획수 || e.lot.구획 || e.lot.면수 || null,
+            isFree: e.contentItem?.isFree || false,
+            address: e.lot.위치 || e.lot.소재지 || e.lot.주소 || '',
+            totalSpaces: e.contentItem?.totalSpaces || null,
+            basicCharge: e.contentItem?.basicCharge || null,
+            feeInfo: e.contentItem?.feeInfo || null,
+          }));
 
         paths.push({
-          params: { sido, sigungu, dong, slug },
+          params: { sido, sigungu, dong, slug: entry.slug },
           props: {
-            item: item || null,
-            allItems: contentItems.filter((i: any) => i.dong === dong),
-            sigunguItems: contentItems,
-            matchedLot: lot,
-            matchedCategory: category,
+            item: entry.contentItem || null,
+            nearbyEntries,
+            otherDongs: allDongs.filter(d => d !== dong).slice(0, 6),
+            matchedLot: entry.lot,
+            matchedCategory: entry.category,
             gongdanData,
             editorial: editorialMap.get(`${sigungu}_${lotName}`) || null,
           },
@@ -204,41 +91,15 @@ export async function getStaticPaths() {
   return paths;
 }
 
-function toSlug(name: string): string {
-  return name
-    .replace(/\s+/g, '-')
-    .replace(/[^a-zA-Z0-9가-힣ㄱ-ㅎㅏ-ㅣ\-]/g, '')
-    .replace(/-+/g, '-')
-    .replace(/^-|-$/g, '');
-}
-
 const { sido, sigungu, dong, slug } = Astro.params;
-const { item, allItems, sigunguItems, matchedLot, matchedCategory, gongdanData, editorial } = Astro.props;
-
-// 이름 정규화 (요금매칭용)
-function normalizeParkingName(name: string): string {
-  return name
-    .replace(/\s+/g, '')
-    .replace(/(공영주차장|노상주차장|부설주차장|주차장|공영)$/g, '')
-    .trim();
-}
+const { item, nearbyEntries, otherDongs, matchedLot, matchedCategory, gongdanData, editorial } = Astro.props;
 
 // 매칭된 주차장의 요금정보 찾기
 const matchedFee = (() => {
   if (!gongdanData || !matchedLot) return null;
-  // 요금정보 배열에서 주차장명으로 매칭 (강동구 패턴)
-  const feeSources = [
-    gongdanData.노상주차장?.요금정보,
-    gongdanData.노외주차장?.요금정보,
-    gongdanData.공영주차장?.노외주차장?.요금정보,
-    gongdanData.공영주차장?.노상주차장?.요금정보,
-  ];
-  const norm = normalizeParkingName(matchedLot.주차장명 || matchedLot.시설명 || '');
-  for (const fees of feeSources) {
-    if (!Array.isArray(fees)) continue;
-    const found = fees.find((f: any) => normalizeParkingName(f.주차장명 || '') === norm);
-    if (found) return found;
-  }
+  const lotName = matchedLot.주차장명 || matchedLot.시설명 || '';
+  const found = matchFeeEntry(lotName, gongdanData);
+  if (found) return found;
   // 주차장 항목 자체에 요금 필드 (송파구, 중구 등)
   const lot = matchedLot;
   if (lot.시간주차요금 || lot.요금 || lot.요금_5분당 || lot.월정기요금 || lot.월정기 || lot.월정기_주간) {
@@ -312,14 +173,8 @@ const is24h = gongdanHours
   ? gongdanHours.includes('24시간')
   : (itemForDisplay.weekdayOpen === '00:00' && (itemForDisplay.weekdayClose === '00:00' || itemForDisplay.weekdayClose === '23:59'));
 
-// ─── 주변 주차장 (같은 동) ───
-const nearbyItems = (allItems || [])
-  .filter((i: any) => i.name !== displayName)
-  .sort((a: any, b: any) => (b.totalSpaces || 0) - (a.totalSpaces || 0))
-  .slice(0, 5);
-
-// ─── 같은 구 다른 동 주차장 (내부 링크용) ───
-const otherDongs = [...new Set((sigunguItems || []).map((i: any) => i.dong).filter((d: string) => d && d !== dong))].slice(0, 6);
+// ─── 주변 주차장 (같은 동, 공단주소 기반) ───
+const nearbyItems = (nearbyEntries || []);
 
 // ─── SEO 메타 ───
 const feeLabel = matchedFee ? (matchedFee.시간주차요금 || matchedFee.시간제 || matchedFee.시간제요금 || matchedFee.요금_5분당 || matchedFee.요금 || '유료') : '유료';
@@ -1192,12 +1047,10 @@ const images: string[] = itemForDisplay.images || [];
             </tr>
           </thead>
           <tbody>
-            {nearbyItems.map((nearby: any) => {
-              const nearbySlug = toSlug(nearby.name);
-              return (
+            {nearbyItems.map((nearby: any) => (
                 <tr class="border-b border-gray-100 hover:bg-gray-50 transition-colors">
                   <td class="py-3 pr-4">
-                    <a href={`/${encodeURIComponent(sido!)}/${encodeURIComponent(sigungu!)}/${encodeURIComponent(dong!)}/${encodeURIComponent(nearbySlug)}/`} class="font-semibold text-gray-900 hover:text-emerald-600 transition-colors">
+                    <a href={`/${encodeURIComponent(sido!)}/${encodeURIComponent(sigungu!)}/${encodeURIComponent(dong!)}/${encodeURIComponent(nearby.slug)}/`} class="font-semibold text-gray-900 hover:text-emerald-600 transition-colors">
                       {nearby.name}
                     </a>
                   </td>
@@ -1206,40 +1059,36 @@ const images: string[] = itemForDisplay.images || [];
                       {nearby.isFree ? '무료' : (nearby.basicCharge ? `${nearby.basicCharge.toLocaleString()}원` : '유료')}
                     </span>
                   </td>
-                  <td class="py-3 px-3 text-center text-gray-600">{nearby.totalSpaces ? `${nearby.totalSpaces}면` : '-'}</td>
-                  <td class="py-3 px-3 text-center text-gray-500 text-xs">{nearby.type}{nearby.category ? ` / ${nearby.category}` : ''}</td>
+                  <td class="py-3 px-3 text-center text-gray-600">{nearby.spaces || nearby.totalSpaces ? `${nearby.spaces || nearby.totalSpaces}면` : '-'}</td>
+                  <td class="py-3 px-3 text-center text-gray-500 text-xs">{nearby.category || ''}</td>
                   <td class="py-3 pl-3 text-right">
-                    <a href={`/${encodeURIComponent(sido!)}/${encodeURIComponent(sigungu!)}/${encodeURIComponent(dong!)}/${encodeURIComponent(nearbySlug)}/`} class="text-emerald-600 text-xs font-semibold hover:underline">
+                    <a href={`/${encodeURIComponent(sido!)}/${encodeURIComponent(sigungu!)}/${encodeURIComponent(dong!)}/${encodeURIComponent(nearby.slug)}/`} class="text-emerald-600 text-xs font-semibold hover:underline">
                       상세보기
                     </a>
                   </td>
                 </tr>
-              );
-            })}
+            ))}
           </tbody>
         </table>
       </div>
 
       {/* 카드 목록 (모바일) */}
       <div class="sm:hidden flex flex-col gap-3">
-        {nearbyItems.map((nearby: any) => {
-          const nearbySlug = toSlug(nearby.name);
-          return (
+        {nearbyItems.map((nearby: any) => (
             <a
-              href={`/${encodeURIComponent(sido!)}/${encodeURIComponent(sigungu!)}/${encodeURIComponent(dong!)}/${encodeURIComponent(nearbySlug)}/`}
+              href={`/${encodeURIComponent(sido!)}/${encodeURIComponent(sigungu!)}/${encodeURIComponent(dong!)}/${encodeURIComponent(nearby.slug)}/`}
               class="flex items-center justify-between p-4 border border-gray-200 rounded-xl hover:border-emerald-200 hover:shadow-sm transition-all"
             >
               <div class="flex items-center gap-3">
                 <span class={`w-2 h-2 rounded-full shrink-0 ${nearby.isFree ? 'bg-emerald-500' : 'bg-blue-500'}`}></span>
                 <div>
                   <p class="font-bold text-gray-900 text-sm">{nearby.name}</p>
-                  <p class="text-xs text-gray-400">{nearby.isFree ? '무료' : (nearby.basicCharge ? `기본 ${nearby.basicCharge.toLocaleString()}원` : nearby.feeInfo || '유료')}{nearby.totalSpaces ? ` · ${nearby.totalSpaces}면` : ''}</p>
+                  <p class="text-xs text-gray-400">{nearby.isFree ? '무료' : (nearby.basicCharge ? `기본 ${nearby.basicCharge.toLocaleString()}원` : nearby.feeInfo || '유료')}{nearby.spaces || nearby.totalSpaces ? ` · ${nearby.spaces || nearby.totalSpaces}면` : ''}</p>
                 </div>
               </div>
               <svg class="w-4 h-4 text-gray-300 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
             </a>
-          );
-        })}
+        ))}
       </div>
     </section>
   )}

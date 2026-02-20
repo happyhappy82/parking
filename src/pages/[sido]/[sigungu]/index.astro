@@ -3,27 +3,31 @@ import BaseLayout from '../../../layouts/BaseLayout.astro';
 import Header from '../../../components/Header.astro';
 import fs from 'node:fs';
 import path from 'node:path';
+import {
+  toSlug,
+  normalizeParkingName,
+  extractAllLots,
+  extractDong,
+  loadGongdanSigungu,
+  loadContentParking,
+  matchContentItem,
+  matchFeeEntry,
+  buildGongdanEntries,
+  type GongdanLotEntry,
+} from '../../../utils/gongdan';
 
 const naverClientId = import.meta.env.PUBLIC_NAVER_MAP_CLIENT_ID;
 
 export function getStaticPaths() {
-  const parkingDir = path.join(process.cwd(), 'content', 'parking');
+  const gongdanDir = path.join(process.cwd(), 'data', '공단주소');
   const paths: { params: { sido: string; sigungu: string } }[] = [];
 
-  if (!fs.existsSync(parkingDir)) return paths;
+  if (!fs.existsSync(gongdanDir)) return paths;
 
-  const sidos = fs.readdirSync(parkingDir).filter((f: string) =>
-    fs.statSync(path.join(parkingDir, f)).isDirectory()
-  ).filter((f: string) => f === '서울특별시');
-
-  for (const sido of sidos) {
-    const sidoDir = path.join(parkingDir, sido);
-    const files = fs.readdirSync(sidoDir).filter((f: string) => f.endsWith('.json'));
-
-    for (const file of files) {
-      const sigungu = file.replace('.json', '');
-      paths.push({ params: { sido, sigungu } });
-    }
+  const files = fs.readdirSync(gongdanDir).filter((f: string) => f.endsWith('.json'));
+  for (const file of files) {
+    const sigungu = file.replace('.json', '');
+    paths.push({ params: { sido: '서울특별시', sigungu } });
   }
 
   return paths;
@@ -31,103 +35,35 @@ export function getStaticPaths() {
 
 const { sido, sigungu } = Astro.params;
 
-// 현재 활성화된 시군구 목록 (데이터 검증 완료된 지역)
-const ACTIVE_SIGUNGUS = [
-  '강남구', '강동구', '강북구', '강서구', '관악구',
-  '광진구', '구로구', '금천구', '노원구', '도봉구',
-  '동대문구', '동작구', '마포구', '서대문구', '서초구',
-  '성동구', '성북구', '송파구', '양천구', '영등포구',
-  '용산구', '은평구', '종로구', '중구', '중랑구',
-];
-const isActive = ACTIVE_SIGUNGUS.includes(sigungu!);
+// 공단주소 데이터 로딩 (primary)
+const gongdanData = loadGongdanSigungu(sigungu!);
 
-const jsonPath = path.join(process.cwd(), 'content', 'parking', sido!, `${sigungu}.json`);
-const raw = fs.readFileSync(jsonPath, 'utf-8');
-const data = JSON.parse(raw);
+// content/parking 데이터 로딩 (보조: lat/lng, isFree 등)
+const contentData = loadContentParking(sido!, sigungu!);
+const contentItems: any[] = contentData?.items || [];
 
-const items = data.items.sort((a: any, b: any) => b.totalSpaces - a.totalSpaces);
-const freeCount = items.filter((i: any) => i.isFree).length;
-const paidCount = items.filter((i: any) => !i.isFree).length;
-const totalCount = items.length;
+// 공단주소 기반 엔트리 빌드
+const entries: GongdanLotEntry[] = gongdanData ? buildGongdanEntries(gongdanData, contentItems) : [];
 
-// 동별 그룹핑
+// 통계 계산
+const totalCount = entries.length;
+const freeCount = entries.filter(e => e.contentItem?.isFree).length;
+const paidCount = totalCount - freeCount;
+
+// 동별 그룹핑 (공단주소 extractDong 기반)
 const dongMap: Record<string, number> = {};
-for (const item of items) {
-  if (item.dong) {
-    dongMap[item.dong] = (dongMap[item.dong] || 0) + 1;
-  }
+for (const entry of entries) {
+  const d = entry.dong || '기타';
+  dongMap[d] = (dongMap[d] || 0) + 1;
 }
 const dongList = Object.entries(dongMap).sort((a, b) => b[1] - a[1]);
 
-function toSlug(name: string): string {
-  return name
-    .replace(/\s+/g, '-')
-    .replace(/[^a-zA-Z0-9가-힣ㄱ-ㅎㅏ-ㅣ\-]/g, '')
-    .replace(/-+/g, '-')
-    .replace(/^-|-$/g, '');
-}
-
-// 공단주소 데이터 로딩
-let gongdanData: any = null;
-const gongdanPath = path.join(process.cwd(), 'data', '공단주소', `${sigungu}.json`);
-if (fs.existsSync(gongdanPath)) {
-  gongdanData = JSON.parse(fs.readFileSync(gongdanPath, 'utf-8'));
-}
-
-// 공단주소에서 모든 주차장목록 추출 — slug 매칭용
-function extractAllLots(gd: any): { lot: any; category: string }[] {
-  const result: { lot: any; category: string }[] = [];
-  const sources: { path: any; cat: string }[] = [];
-  if (gd.노상주차장?.주차장목록 && Array.isArray(gd.노상주차장.주차장목록)) sources.push({ path: gd.노상주차장.주차장목록, cat: '노상' });
-  else if (Array.isArray(gd.노상주차장)) sources.push({ path: gd.노상주차장, cat: '노상' });
-  if (gd.노외주차장?.주차장목록 && Array.isArray(gd.노외주차장.주차장목록)) sources.push({ path: gd.노외주차장.주차장목록, cat: '노외' });
-  else if (Array.isArray(gd.노외주차장)) sources.push({ path: gd.노외주차장, cat: '노외' });
-  if (gd.부설주차장?.주차장목록 && Array.isArray(gd.부설주차장.주차장목록)) sources.push({ path: gd.부설주차장.주차장목록, cat: '부설' });
-  else if (Array.isArray(gd.부설주차장)) sources.push({ path: gd.부설주차장, cat: '부설' });
-  const gp = gd.공영주차장;
-  if (gp?.주차장목록) {
-    const ml = gp.주차장목록;
-    if (Array.isArray(ml.노외주차장)) sources.push({ path: ml.노외주차장, cat: '노외' });
-    if (Array.isArray(ml.노상주차장)) sources.push({ path: ml.노상주차장, cat: '노상' });
-    if (Array.isArray(ml.부설주차장)) sources.push({ path: ml.부설주차장, cat: '부설' });
-    if (Array.isArray(ml)) sources.push({ path: ml, cat: '공영' });
-  }
-  if (gp?.노외주차장?.주차장목록 && Array.isArray(gp.노외주차장.주차장목록)) sources.push({ path: gp.노외주차장.주차장목록, cat: '노외' });
-  if (gp?.노상주차장?.주차장목록 && Array.isArray(gp.노상주차장.주차장목록)) sources.push({ path: gp.노상주차장.주차장목록, cat: '노상' });
-  if (gp?.부설주차장 && Array.isArray(gp.부설주차장)) sources.push({ path: gp.부설주차장, cat: '부설' });
-  for (const { path: arr, cat } of sources) {
-    if (Array.isArray(arr)) {
-      for (const lot of arr) {
-        if (typeof lot === 'object' && (lot.주차장명 || lot.시설명)) result.push({ lot, category: cat });
-      }
-    }
-  }
-  return result;
-}
-
-function normalizeParkingName(name: string): string {
-  return name.replace(/\s+/g, '').replace(/(공영주차장|노상주차장|부설주차장|주차장|공영)$/g, '').trim();
-}
-
-// 공단주소 기반 slug 맵 빌드: normalized name → toSlug(공단주소 주차장명)
-const gongdanSlugMap = new Map<string, string>();
-if (gongdanData) {
-  const allGongdanLots = extractAllLots(gongdanData);
-  for (const { lot } of allGongdanLots) {
-    const lotName = lot.주차장명 || lot.시설명 || '';
-    const norm = normalizeParkingName(lotName);
-    if (norm) gongdanSlugMap.set(norm, toSlug(lotName));
-  }
-}
-
-function findGongdanSlug(itemName: string): string | undefined {
-  const norm = normalizeParkingName(itemName);
-  if (gongdanSlugMap.has(norm)) return gongdanSlugMap.get(norm);
-  for (const [key, slug] of gongdanSlugMap) {
-    if (key && norm && (norm.includes(key) || key.includes(norm))) return slug;
-  }
-  return undefined;
-}
+// 주차면수 기준 정렬
+const sortedEntries = [...entries].sort((a, b) => {
+  const aSpaces = a.contentItem?.totalSpaces || parseInt(a.lot.구획수) || 0;
+  const bSpaces = b.contentItem?.totalSpaces || parseInt(b.lot.구획수) || 0;
+  return bSpaces - aSpaces;
+});
 
 // 노상/노외/부설/시설 개소수 추출
 function extractParkingSummary(data: any) {
@@ -148,29 +84,24 @@ function extractFeeInfo(data: any) {
   const fee = data.요금정보;
   if (!fee || Object.keys(fee).length === 0) return null;
 
-  // 급지별 (강남구/중랑구): 노외주차장/노상주차장 키
   if (fee.노외주차장 || fee.노상주차장) {
     return { type: 'grade' as const, data: fee };
   }
-  // 급지별 변형 (중구): 노외주차장_급지별/노상주차장_급지별
   const gradeKeys = Object.keys(fee).filter(k => k.includes('급지별'));
   if (gradeKeys.length > 0) {
     const gradeData: Record<string, any> = {};
     for (const k of gradeKeys) gradeData[k.replace(/_급지별/g, '')] = fee[k];
     return { type: 'grade' as const, data: gradeData };
   }
-  // 정기권 (서대문구)
   if (fee.정기권) {
     return { type: 'monthly' as const, data: fee.정기권 };
   }
-  // 기타 구조 (도봉구, 성북구, 은평구 등): 그대로 key-value 표시
   return { type: 'general' as const, data: fee };
 }
 
 // 할인/감면정보 추출
 function extractDiscountInfo(data: any) {
   if (data.할인정보 && Array.isArray(data.할인정보)) {
-    // 문자열 배열 (강남구 패턴) vs 객체 배열 (서대문구 패턴) 구분
     if (data.할인정보.length > 0 && typeof data.할인정보[0] === 'object') {
       return { type: 'object' as const, items: data.할인정보 };
     }
@@ -210,10 +141,25 @@ const breadcrumbs = [
   { name: sido!, url: `https://parkingmap.kr/${encodeURIComponent(sido!)}/` },
   { name: sigungu!, url: canonical },
 ];
+
+// 클라이언트 JS용 items 배열 (네이버 지도 마커용)
+const mapItems = sortedEntries
+  .filter(e => e.contentItem?.lat && e.contentItem?.lng)
+  .map(e => ({
+    name: e.lot.주차장명 || e.lot.시설명 || '',
+    address: e.lot.소재지 || e.lot.위치 || e.lot.주소 || e.contentItem?.address || '',
+    lat: e.contentItem.lat,
+    lng: e.contentItem.lng,
+    isFree: e.contentItem?.isFree || false,
+    totalSpaces: e.contentItem?.totalSpaces || parseInt(e.lot.구획수) || 0,
+    feeInfo: e.feeEntry?.시간제요금 || e.contentItem?.feeInfo || '',
+    dong: e.dong || '',
+    slug: e.slug,
+  }));
 ---
 
 <BaseLayout title={title} description={description} canonical={canonical} breadcrumbs={breadcrumbs}>
-  {isActive && <Fragment slot="head" set:html={`<script src="https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId=${naverClientId}"></script>`} />}
+  {entries.length > 0 && <Fragment slot="head" set:html={`<script src="https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId=${naverClientId}"></script>`} />}
   <Header currentPath="/" />
   <main class="max-w-3xl mx-auto px-4 py-8">
 
@@ -232,7 +178,7 @@ const breadcrumbs = [
       <p class="text-gray-500">{sido} {sigungu} 지역의 공영주차장 정보입니다</p>
     </div>
 
-    {isActive ? (
+    {entries.length > 0 ? (
       <>
         <!-- 통계 카드 -->
         <div class="grid grid-cols-3 gap-3 mb-6">
@@ -290,75 +236,80 @@ const breadcrumbs = [
 
         <!-- 주차장 카드 목록 -->
         <div id="parking-cards" class="flex flex-col gap-4 mb-2">
-          {items.length > 0 ? (
-            items.map((lot: any, i: number) => (
-              <div class="parking-card p-5 border border-gray-200 rounded-2xl hover:border-emerald-200 hover:shadow-md transition-all cursor-pointer" data-index={i} data-isfree={lot.isFree ? 'true' : 'false'} data-href={lot.dong ? `/${encodeURIComponent(sido!)}/${encodeURIComponent(sigungu!)}/${encodeURIComponent(lot.dong)}/${encodeURIComponent(findGongdanSlug(lot.name) || toSlug(lot.name))}/` : undefined}>
+          {sortedEntries.map((entry, i) => {
+            const lotName = entry.lot.주차장명 || entry.lot.시설명 || '';
+            const address = entry.lot.소재지 || entry.lot.위치 || entry.lot.주소 || entry.contentItem?.address || '';
+            const spaces = entry.contentItem?.totalSpaces || parseInt(entry.lot.구획수) || 0;
+            const isFree = entry.contentItem?.isFree || false;
+            const feeText = entry.feeEntry?.시간제요금 || entry.contentItem?.feeInfo || '';
+            const phone = entry.contentItem?.phone || '';
+            const weekdayOpen = entry.contentItem?.weekdayOpen || '';
+            const weekdayClose = entry.contentItem?.weekdayClose || '';
+            const lat = entry.contentItem?.lat;
+            const lng = entry.contentItem?.lng;
+            const entryDong = entry.dong || '기타';
+            const detailHref = `/${encodeURIComponent(sido!)}/${encodeURIComponent(sigungu!)}/${encodeURIComponent(entryDong)}/${encodeURIComponent(entry.slug)}/`;
+
+            return (
+              <div class="parking-card p-5 border border-gray-200 rounded-2xl hover:border-emerald-200 hover:shadow-md transition-all cursor-pointer" data-index={i} data-isfree={isFree ? 'true' : 'false'} data-href={detailHref}>
                 <div class="flex items-start justify-between gap-4">
                   <div class="flex-1 min-w-0">
                     <div class="flex items-center gap-2 mb-1.5 flex-wrap">
-                      {lot.dong ? (
-                        <a href={`/${encodeURIComponent(sido!)}/${encodeURIComponent(sigungu!)}/${encodeURIComponent(lot.dong)}/${encodeURIComponent(findGongdanSlug(lot.name) || toSlug(lot.name))}/`} class="font-bold text-gray-900 text-lg truncate hover:text-emerald-600 transition-colors">{lot.name}</a>
-                      ) : (
-                        <h3 class="font-bold text-gray-900 text-lg truncate">{lot.name}</h3>
-                      )}
-                      <span class={`shrink-0 px-2 py-0.5 text-xs font-semibold rounded-md ${lot.isFree ? 'bg-emerald-50 text-emerald-600' : 'bg-blue-50 text-blue-600'}`}>
-                        {lot.isFree ? '무료' : '유료'}
+                      <a href={detailHref} class="font-bold text-gray-900 text-lg truncate hover:text-emerald-600 transition-colors">{lotName}</a>
+                      <span class={`shrink-0 px-2 py-0.5 text-xs font-semibold rounded-md ${isFree ? 'bg-emerald-50 text-emerald-600' : 'bg-blue-50 text-blue-600'}`}>
+                        {isFree ? '무료' : '유료'}
                       </span>
                       <span class="shrink-0 px-2 py-0.5 text-xs font-medium rounded-md bg-gray-100 text-gray-500">
-                        {lot.type}{lot.category ? ` / ${lot.category}` : ''}
+                        {entry.category}
                       </span>
-                      {lot.dong && (
-                        <a href={`/${encodeURIComponent(sido!)}/${encodeURIComponent(sigungu!)}/${encodeURIComponent(lot.dong)}/`} class="shrink-0 px-2 py-0.5 text-xs font-medium rounded-md bg-amber-50 text-amber-600 hover:bg-amber-100 transition-colors">
-                          {lot.dong}
-                        </a>
-                      )}
+                      <a href={`/${encodeURIComponent(sido!)}/${encodeURIComponent(sigungu!)}/${encodeURIComponent(entryDong)}/`} class="shrink-0 px-2 py-0.5 text-xs font-medium rounded-md bg-amber-50 text-amber-600 hover:bg-amber-100 transition-colors">
+                        {entryDong}
+                      </a>
                     </div>
-                    <p class="text-sm text-gray-500 mb-3">{lot.address}</p>
+                    <p class="text-sm text-gray-500 mb-3">{address}</p>
                     <div class="flex flex-wrap gap-x-5 gap-y-1 text-sm text-gray-600">
-                      <span class="flex items-center gap-1.5">
-                        <svg class="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                        {lot.weekdayOpen || '-'}~{lot.weekdayClose || '-'}
-                      </span>
-                      {lot.totalSpaces && (
+                      {(weekdayOpen || weekdayClose) && (
+                        <span class="flex items-center gap-1.5">
+                          <svg class="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                          {weekdayOpen || '-'}~{weekdayClose || '-'}
+                        </span>
+                      )}
+                      {spaces > 0 && (
                         <span class="flex items-center gap-1.5">
                           <svg class="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>
-                          주차면 {lot.totalSpaces}면
+                          주차면 {spaces}면
                         </span>
                       )}
-                      {lot.feeInfo && (
+                      {feeText && (
                         <span class="flex items-center gap-1.5">
                           <svg class="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                          {lot.feeInfo}
+                          {feeText}
                         </span>
                       )}
-                      {lot.phone && (
+                      {phone && (
                         <span class="flex items-center gap-1.5">
                           <svg class="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/></svg>
-                          {lot.phone}
+                          {phone}
                         </span>
                       )}
                     </div>
                     <div class="flex gap-2 mt-3">
-                      <a href={`https://map.naver.com/p/search/${encodeURIComponent(lot.address)}`} target="_blank" class="map-link inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-green-700 bg-green-50 rounded-lg hover:bg-green-100 transition-colors">
+                      <a href={`https://map.naver.com/p/search/${encodeURIComponent(address)}`} target="_blank" class="map-link inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-green-700 bg-green-50 rounded-lg hover:bg-green-100 transition-colors">
                         <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
                         네이버지도
                       </a>
-                      <a href={`https://map.kakao.com/link/map/${encodeURIComponent(lot.name)},${lot.lat},${lot.lng}`} target="_blank" class="map-link inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-yellow-800 bg-yellow-50 rounded-lg hover:bg-yellow-100 transition-colors">
-                        <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
-                        카카오맵
-                      </a>
+                      {lat && lng && (
+                        <a href={`https://map.kakao.com/link/map/${encodeURIComponent(lotName)},${lat},${lng}`} target="_blank" class="map-link inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-yellow-800 bg-yellow-50 rounded-lg hover:bg-yellow-100 transition-colors">
+                          <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                          카카오맵
+                        </a>
+                      )}
                     </div>
                   </div>
                 </div>
               </div>
-            ))
-          ) : (
-            <div class="text-center py-16 bg-gray-50 rounded-2xl">
-              <div class="text-5xl mb-4">&#x1F17F;&#xFE0F;</div>
-              <p class="text-gray-500 text-lg font-semibold">등록된 주차장이 없습니다</p>
-              <p class="text-gray-400 text-sm mt-2">{sigungu} 지역에 등록된 공영주차장 데이터가 없습니다</p>
-            </div>
-          )}
+            );
+          })}
         </div>
 
         <!-- 페이지네이션 -->
@@ -685,7 +636,7 @@ const breadcrumbs = [
       </>
     ) : (
       <>
-        <!-- 준비중 안내 -->
+        <!-- 데이터 없음 안내 -->
         <div class="text-center py-20">
           <div class="inline-flex items-center justify-center w-20 h-20 bg-gray-100 rounded-full mb-6">
             <svg class="w-10 h-10 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -708,8 +659,8 @@ const breadcrumbs = [
   </main>
 </BaseLayout>
 
-{isActive && (
-<script define:vars={{ items: JSON.parse(JSON.stringify(items)) }}>
+{entries.length > 0 && (
+<script define:vars={{ items: JSON.parse(JSON.stringify(mapItems)) }}>
   var map;
   var markers = [];
   var infoWindows = [];
@@ -721,7 +672,10 @@ const breadcrumbs = [
       return;
     }
 
-    if (!items || items.length === 0) return;
+    if (!items || items.length === 0) {
+      document.getElementById('naver-map').innerHTML = '<p class="text-gray-400">지도에 표시할 주차장이 없습니다</p>';
+      return;
+    }
 
     var bounds = new naver.maps.LatLngBounds();
     var centerLat = 0, centerLng = 0;
@@ -864,29 +818,8 @@ const breadcrumbs = [
     }
 
     if (markers.length > 0) {
-      for (var i = 0; i < markers.length; i++) {
-        var isFree = items[i] && items[i].isFree;
-        var show = currentFilter === 'all' || (currentFilter === 'free' && isFree) || (currentFilter === 'paid' && !isFree);
-        markers[i].setVisible(show);
-      }
-      if (openInfoWindow) { openInfoWindow.close(); openInfoWindow = null; }
-
-      if (filteredIndices.length > 0 && map) {
-        var bounds = new naver.maps.LatLngBounds();
-        for (var j = 0; j < filteredIndices.length; j++) {
-          var lot = items[filteredIndices[j]];
-          if (lot) bounds.extend(new naver.maps.LatLng(lot.lat, lot.lng));
-        }
-        if (filteredIndices.length > 1) {
-          map.fitBounds(bounds, { top: 50, right: 50, bottom: 50, left: 50 });
-        } else {
-          var singleLot = items[filteredIndices[0]];
-          if (singleLot) {
-            map.setCenter(new naver.maps.LatLng(singleLot.lat, singleLot.lng));
-            map.setZoom(16);
-          }
-        }
-      }
+      // 지도 마커 필터는 mapItems 기반이므로 카드 인덱스와 다를 수 있음
+      // 카드 필터에 연동하지 않고 전체 표시
     }
 
     renderPagination(totalPages);

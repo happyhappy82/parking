@@ -1,49 +1,50 @@
 ---
 import BaseLayout from '../../../layouts/BaseLayout.astro';
 import Header from '../../../components/Header.astro';
-import ParkingDirectory from '../../../components/ParkingDirectory.astro';
 import fs from 'node:fs';
 import path from 'node:path';
+import {
+  toSlug,
+  extractDong,
+  loadGongdanSigungu,
+  loadContentParking,
+  buildGongdanEntries,
+  matchFeeEntry,
+  type GongdanLotEntry,
+} from '../../../utils/gongdan';
 
 const naverClientId = import.meta.env.PUBLIC_NAVER_MAP_CLIENT_ID;
 
 export function getStaticPaths() {
-  const parkingDir = path.join(process.cwd(), 'content', 'parking');
+  const gongdanDir = path.join(process.cwd(), 'data', '공단주소');
   const paths: { params: { sido: string; sigungu: string; dong: string } }[] = [];
 
-  if (!fs.existsSync(parkingDir)) return paths;
+  if (!fs.existsSync(gongdanDir)) return paths;
 
-  const sidos = fs.readdirSync(parkingDir).filter((f: string) =>
-    fs.statSync(path.join(parkingDir, f)).isDirectory()
-  ).filter((f: string) => f === '서울특별시');
+  const files = fs.readdirSync(gongdanDir).filter((f: string) => f.endsWith('.json'));
+  for (const file of files) {
+    const sigungu = file.replace('.json', '');
 
-  for (const sido of sidos) {
-    const sidoDir = path.join(parkingDir, sido);
-    const files = fs.readdirSync(sidoDir).filter((f: string) => f.endsWith('.json'));
+    try {
+      const raw = fs.readFileSync(path.join(gongdanDir, file), 'utf-8');
+      const gongdanData = JSON.parse(raw);
 
-    // 현재 활성화된 시군구 목록 (데이터 검증 완료된 지역)
-    const ACTIVE_SIGUNGUS = ['강동구'];
+      // content/parking 보조 데이터 로딩
+      const contentData = loadContentParking('서울특별시', sigungu);
+      const contentItems: any[] = contentData?.items || [];
 
-    for (const file of files) {
-      const sigungu = file.replace('.json', '');
-      if (!ACTIVE_SIGUNGUS.includes(sigungu)) continue;
-      const filePath = path.join(sidoDir, file);
+      const entries = buildGongdanEntries(gongdanData, contentItems);
+      const dongs = new Set<string>();
 
-      try {
-        const raw = fs.readFileSync(filePath, 'utf-8');
-        const data = JSON.parse(raw);
-        const dongs = new Set<string>();
-
-        for (const item of data.items || []) {
-          if (item.dong) dongs.add(item.dong);
-        }
-
-        for (const dong of dongs) {
-          paths.push({ params: { sido, sigungu, dong } });
-        }
-      } catch (e) {
-        // skip invalid files
+      for (const entry of entries) {
+        dongs.add(entry.dong || '기타');
       }
+
+      for (const dong of dongs) {
+        paths.push({ params: { sido: '서울특별시', sigungu, dong } });
+      }
+    } catch {
+      // skip invalid files
     }
   }
 
@@ -52,83 +53,28 @@ export function getStaticPaths() {
 
 const { sido, sigungu, dong } = Astro.params;
 
-const jsonPath = path.join(process.cwd(), 'content', 'parking', sido!, `${sigungu}.json`);
-const raw = fs.readFileSync(jsonPath, 'utf-8');
-const data = JSON.parse(raw);
+// 공단주소 데이터 로딩 (primary)
+const gongdanData = loadGongdanSigungu(sigungu!);
 
-// 공단주소 데이터 로딩 — 올바른 slug 매칭용
-function toSlugLocal(name: string): string {
-  return name
-    .replace(/\s+/g, '-')
-    .replace(/[^a-zA-Z0-9가-힣ㄱ-ㅎㅏ-ㅣ\-]/g, '')
-    .replace(/-+/g, '-')
-    .replace(/^-|-$/g, '');
-}
-function normalizeParkingName(name: string): string {
-  return name.replace(/\s+/g, '').replace(/(공영주차장|노상주차장|부설주차장|주차장|공영)$/g, '').trim();
-}
-function extractAllLots(gd: any): { lot: any; category: string }[] {
-  const result: { lot: any; category: string }[] = [];
-  const sources: { path: any; cat: string }[] = [];
-  if (gd.노상주차장?.주차장목록 && Array.isArray(gd.노상주차장.주차장목록)) sources.push({ path: gd.노상주차장.주차장목록, cat: '노상' });
-  else if (Array.isArray(gd.노상주차장)) sources.push({ path: gd.노상주차장, cat: '노상' });
-  if (gd.노외주차장?.주차장목록 && Array.isArray(gd.노외주차장.주차장목록)) sources.push({ path: gd.노외주차장.주차장목록, cat: '노외' });
-  else if (Array.isArray(gd.노외주차장)) sources.push({ path: gd.노외주차장, cat: '노외' });
-  if (gd.부설주차장?.주차장목록 && Array.isArray(gd.부설주차장.주차장목록)) sources.push({ path: gd.부설주차장.주차장목록, cat: '부설' });
-  else if (Array.isArray(gd.부설주차장)) sources.push({ path: gd.부설주차장, cat: '부설' });
-  const gp = gd.공영주차장;
-  if (gp?.주차장목록) {
-    const ml = gp.주차장목록;
-    if (Array.isArray(ml.노외주차장)) sources.push({ path: ml.노외주차장, cat: '노외' });
-    if (Array.isArray(ml.노상주차장)) sources.push({ path: ml.노상주차장, cat: '노상' });
-    if (Array.isArray(ml.부설주차장)) sources.push({ path: ml.부설주차장, cat: '부설' });
-    if (Array.isArray(ml)) sources.push({ path: ml, cat: '공영' });
-  }
-  if (gp?.노외주차장?.주차장목록 && Array.isArray(gp.노외주차장.주차장목록)) sources.push({ path: gp.노외주차장.주차장목록, cat: '노외' });
-  if (gp?.노상주차장?.주차장목록 && Array.isArray(gp.노상주차장.주차장목록)) sources.push({ path: gp.노상주차장.주차장목록, cat: '노상' });
-  if (gp?.부설주차장 && Array.isArray(gp.부설주차장)) sources.push({ path: gp.부설주차장, cat: '부설' });
-  for (const { path: arr, cat } of sources) {
-    if (Array.isArray(arr)) {
-      for (const lot of arr) {
-        if (typeof lot === 'object' && (lot.주차장명 || lot.시설명)) result.push({ lot, category: cat });
-      }
-    }
-  }
-  return result;
-}
+// content/parking 데이터 로딩 (보조: lat/lng, isFree 등)
+const contentData = loadContentParking(sido!, sigungu!);
+const contentItems: any[] = contentData?.items || [];
 
-// 공단주소 기반 slug 맵 빌드: normalized name → toSlug(공단주소 주차장명)
-const slugMap = new Map<string, string>();
-const gongdanPath = path.join(process.cwd(), 'data', '공단주소', `${sigungu}.json`);
-if (fs.existsSync(gongdanPath)) {
-  try {
-    const gongdanData = JSON.parse(fs.readFileSync(gongdanPath, 'utf-8'));
-    const allGongdanLots = extractAllLots(gongdanData);
-    for (const { lot } of allGongdanLots) {
-      const lotName = lot.주차장명 || lot.시설명 || '';
-      const norm = normalizeParkingName(lotName);
-      if (norm) slugMap.set(norm, toSlugLocal(lotName));
-    }
-  } catch {}
-}
+// 공단주소 기반 엔트리 빌드 + 해당 동 필터
+const allEntries: GongdanLotEntry[] = gongdanData ? buildGongdanEntries(gongdanData, contentItems) : [];
+const entries = allEntries.filter(e => (e.dong || '기타') === dong);
 
-// content/parking 아이템에 공단주소 slug 매칭
-function findGongdanSlug(itemName: string): string | undefined {
-  const norm = normalizeParkingName(itemName);
-  if (slugMap.has(norm)) return slugMap.get(norm);
-  for (const [key, slug] of slugMap) {
-    if (key && norm && (norm.includes(key) || key.includes(norm))) return slug;
-  }
-  return undefined;
-}
+// 주차면수 기준 정렬
+const sortedEntries = [...entries].sort((a, b) => {
+  const aSpaces = a.contentItem?.totalSpaces || parseInt(a.lot.구획수) || 0;
+  const bSpaces = b.contentItem?.totalSpaces || parseInt(b.lot.구획수) || 0;
+  return bSpaces - aSpaces;
+});
 
-const items = data.items
-  .filter((item: any) => item.dong === dong)
-  .map((item: any) => ({ ...item, slug: findGongdanSlug(item.name) }))
-  .sort((a: any, b: any) => b.totalSpaces - a.totalSpaces);
-
-const freeCount = items.filter((i: any) => i.isFree).length;
-const paidCount = items.filter((i: any) => !i.isFree).length;
+// 통계 계산
+const totalCount = entries.length;
+const freeCount = entries.filter(e => e.contentItem?.isFree).length;
+const paidCount = totalCount - freeCount;
 
 const title = `${sigungu} ${dong} 무료주차장 · 공영주차장 지도 | 주차장 지도`;
 const description = `${sigungu} ${dong} 무료주차장 ${freeCount}곳, 유료주차장 ${paidCount}곳 위치·요금 안내. 네이버지도·카카오맵으로 바로 길찾기.`;
@@ -140,12 +86,437 @@ const breadcrumbs = [
   { name: sigungu!, url: `https://parkingmap.kr/${encodeURIComponent(sido!)}/${encodeURIComponent(sigungu!)}/` },
   { name: dong!, url: canonical },
 ];
+
+// 클라이언트 JS용 items 배열 (네이버 지도 마커용)
+const mapItems = sortedEntries
+  .filter(e => e.contentItem?.lat && e.contentItem?.lng)
+  .map(e => ({
+    name: e.lot.주차장명 || e.lot.시설명 || '',
+    address: e.lot.소재지 || e.lot.위치 || e.lot.주소 || e.contentItem?.address || '',
+    lat: e.contentItem.lat,
+    lng: e.contentItem.lng,
+    isFree: e.contentItem?.isFree || false,
+    totalSpaces: e.contentItem?.totalSpaces || parseInt(e.lot.구획수) || 0,
+    feeInfo: e.feeEntry?.시간제요금 || e.contentItem?.feeInfo || '',
+    dong: e.dong || '',
+    slug: e.slug,
+  }));
 ---
 
 <BaseLayout title={title} description={description} canonical={canonical} breadcrumbs={breadcrumbs}>
   <Fragment slot="head" set:html={`<script src="https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId=${naverClientId}"></script>`} />
   <Header currentPath="/" />
   <main class="max-w-3xl mx-auto px-4 py-8">
-    <ParkingDirectory sido={sido!} sigungu={sigungu!} dong={dong!} items={items} />
+
+    <!-- 브레드크럼 -->
+    <nav class="flex items-center gap-1.5 text-sm text-gray-400 mb-6 flex-wrap">
+      <a href="/" class="hover:text-emerald-600 transition-colors">홈</a>
+      <span>/</span>
+      <a href={`/${encodeURIComponent(sido!)}/`} class="hover:text-emerald-600 transition-colors">{sido}</a>
+      <span>/</span>
+      <a href={`/${encodeURIComponent(sido!)}/${encodeURIComponent(sigungu!)}/`} class="hover:text-emerald-600 transition-colors">{sigungu}</a>
+      <span>/</span>
+      <span class="text-gray-900 font-semibold">{dong}</span>
+    </nav>
+
+    <!-- 페이지 제목 -->
+    <div class="mb-6">
+      <h1 class="text-3xl font-black text-gray-900 mb-2">{dong} 공영주차장</h1>
+      <p class="text-gray-500">{sido} {sigungu} {dong} 지역의 공영주차장 정보입니다</p>
+    </div>
+
+    <!-- 통계 카드 -->
+    <div class="grid grid-cols-3 gap-3 mb-6">
+      <div class="bg-gray-50 rounded-xl p-4 text-center">
+        <p class="text-2xl font-black text-gray-900">{totalCount}</p>
+        <p class="text-xs text-gray-500 mt-1">전체 주차장</p>
+      </div>
+      <div class="bg-emerald-50 rounded-xl p-4 text-center">
+        <p class="text-2xl font-black text-emerald-600">{freeCount}</p>
+        <p class="text-xs text-emerald-600 mt-1">무료 주차장</p>
+      </div>
+      <div class="bg-blue-50 rounded-xl p-4 text-center">
+        <p class="text-2xl font-black text-blue-600">{paidCount}</p>
+        <p class="text-xs text-blue-600 mt-1">유료 주차장</p>
+      </div>
+    </div>
+
+    <!-- 네이버 지도 -->
+    <div id="naver-map" class="w-full h-[400px] bg-gray-100 rounded-2xl overflow-hidden mb-6 flex items-center justify-center">
+      <p class="text-gray-400">지도를 불러오는 중...</p>
+    </div>
+
+    <!-- 필터 버튼 -->
+    <div id="filter-buttons" class="flex gap-2 mb-4">
+      <button data-filter="all" class="filter-btn active px-4 py-2 text-sm font-bold rounded-xl border-2 border-gray-900 bg-gray-900 text-white transition-all">
+        전체 <span class="ml-1 text-xs opacity-80">{totalCount}</span>
+      </button>
+      <button data-filter="free" class="filter-btn px-4 py-2 text-sm font-bold rounded-xl border-2 border-emerald-500 text-emerald-600 bg-white hover:bg-emerald-50 transition-all">
+        무료 <span class="ml-1 text-xs opacity-80">{freeCount}</span>
+      </button>
+      <button data-filter="paid" class="filter-btn px-4 py-2 text-sm font-bold rounded-xl border-2 border-blue-500 text-blue-600 bg-white hover:bg-blue-50 transition-all">
+        유료 <span class="ml-1 text-xs opacity-80">{paidCount}</span>
+      </button>
+    </div>
+
+    <!-- 검색 결과 카운트 -->
+    <p id="result-count" class="text-sm text-gray-500 font-semibold mb-4">검색 결과: {totalCount}건</p>
+
+    <!-- 주차장 카드 목록 -->
+    <div id="parking-cards" class="flex flex-col gap-4 mb-2">
+      {sortedEntries.length > 0 ? (
+        sortedEntries.map((entry, i) => {
+          const lotName = entry.lot.주차장명 || entry.lot.시설명 || '';
+          const address = entry.lot.소재지 || entry.lot.위치 || entry.lot.주소 || entry.contentItem?.address || '';
+          const spaces = entry.contentItem?.totalSpaces || parseInt(entry.lot.구획수) || 0;
+          const isFree = entry.contentItem?.isFree || false;
+          const feeText = entry.feeEntry?.시간제요금 || entry.contentItem?.feeInfo || '';
+          const phone = entry.contentItem?.phone || '';
+          const weekdayOpen = entry.contentItem?.weekdayOpen || '';
+          const weekdayClose = entry.contentItem?.weekdayClose || '';
+          const lat = entry.contentItem?.lat;
+          const lng = entry.contentItem?.lng;
+          const detailHref = `/${encodeURIComponent(sido!)}/${encodeURIComponent(sigungu!)}/${encodeURIComponent(dong!)}/${encodeURIComponent(entry.slug)}/`;
+
+          return (
+            <div class="parking-card p-5 border border-gray-200 rounded-2xl hover:border-emerald-200 hover:shadow-md transition-all cursor-pointer" data-index={i} data-isfree={isFree ? 'true' : 'false'} data-href={detailHref}>
+              <div class="flex items-start justify-between gap-4">
+                <div class="flex-1 min-w-0">
+                  <div class="flex items-center gap-2 mb-1.5 flex-wrap">
+                    <a href={detailHref} class="font-bold text-gray-900 text-lg truncate hover:text-emerald-600 transition-colors">{lotName}</a>
+                    <span class={`shrink-0 px-2 py-0.5 text-xs font-semibold rounded-md ${isFree ? 'bg-emerald-50 text-emerald-600' : 'bg-blue-50 text-blue-600'}`}>
+                      {isFree ? '무료' : '유료'}
+                    </span>
+                    <span class="shrink-0 px-2 py-0.5 text-xs font-medium rounded-md bg-gray-100 text-gray-500">
+                      {entry.category}
+                    </span>
+                  </div>
+                  <p class="text-sm text-gray-500 mb-3">{address}</p>
+                  <div class="flex flex-wrap gap-x-5 gap-y-1 text-sm text-gray-600">
+                    {(weekdayOpen || weekdayClose) && (
+                      <span class="flex items-center gap-1.5">
+                        <svg class="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                        {weekdayOpen || '-'}~{weekdayClose || '-'}
+                      </span>
+                    )}
+                    {spaces > 0 && (
+                      <span class="flex items-center gap-1.5">
+                        <svg class="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>
+                        주차면 {spaces}면
+                      </span>
+                    )}
+                    {feeText && (
+                      <span class="flex items-center gap-1.5">
+                        <svg class="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                        {feeText}
+                      </span>
+                    )}
+                    {phone && (
+                      <span class="flex items-center gap-1.5">
+                        <svg class="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/></svg>
+                        {phone}
+                      </span>
+                    )}
+                  </div>
+                  <div class="flex gap-2 mt-3">
+                    <a href={`https://map.naver.com/p/search/${encodeURIComponent(address)}`} target="_blank" class="map-link inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-green-700 bg-green-50 rounded-lg hover:bg-green-100 transition-colors">
+                      <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                      네이버지도
+                    </a>
+                    {lat && lng && (
+                      <a href={`https://map.kakao.com/link/map/${encodeURIComponent(lotName)},${lat},${lng}`} target="_blank" class="map-link inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-yellow-800 bg-yellow-50 rounded-lg hover:bg-yellow-100 transition-colors">
+                        <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                        카카오맵
+                      </a>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+        })
+      ) : (
+        <div class="text-center py-16 bg-gray-50 rounded-2xl">
+          <div class="text-5xl mb-4">&#x1F17F;&#xFE0F;</div>
+          <p class="text-gray-500 text-lg font-semibold">등록된 주차장이 없습니다</p>
+          <p class="text-gray-400 text-sm mt-2">{dong} 지역에 등록된 공영주차장 데이터가 없습니다</p>
+        </div>
+      )}
+    </div>
+
+    <!-- 페이지네이션 -->
+    <div id="pagination" class="flex items-center justify-center gap-1 mb-8"></div>
+
+    <!-- CTA: 메인 검색 페이지로 -->
+    <div class="p-6 bg-emerald-50 rounded-2xl text-center mb-6">
+      <p class="text-emerald-800 font-semibold mb-3">다른 지역의 주차장도 찾아보세요</p>
+      <a
+        href="/"
+        class="inline-block px-6 py-3 bg-emerald-700 text-white font-semibold rounded-xl hover:bg-emerald-800 transition-colors"
+      >
+        서울 무료주차장 검색
+      </a>
+    </div>
+
+    <!-- 데이터 출처 -->
+    <div class="mb-4 p-4 bg-gray-50 rounded-xl text-xs text-gray-400 text-center">
+      <p>데이터 출처: 공공데이터포털 (data.go.kr) - 전국주차장정보 표준데이터</p>
+      <p class="mt-1">실제 운영 상황과 다를 수 있으니 방문 전 확인 바랍니다</p>
+    </div>
+
   </main>
 </BaseLayout>
+
+<script define:vars={{ items: JSON.parse(JSON.stringify(mapItems)) }}>
+  var map;
+  var markers = [];
+  var infoWindows = [];
+  var openInfoWindow = null;
+
+  function initMap() {
+    if (typeof naver === 'undefined' || !naver.maps) {
+      document.getElementById('naver-map').innerHTML = '<p class="text-gray-400">네이버 지도를 불러올 수 없습니다</p>';
+      return;
+    }
+
+    if (!items || items.length === 0) {
+      document.getElementById('naver-map').innerHTML = '<p class="text-gray-400">지도에 표시할 주차장이 없습니다</p>';
+      return;
+    }
+
+    var bounds = new naver.maps.LatLngBounds();
+    var centerLat = 0, centerLng = 0;
+
+    for (var i = 0; i < items.length; i++) {
+      centerLat += items[i].lat;
+      centerLng += items[i].lng;
+      bounds.extend(new naver.maps.LatLng(items[i].lat, items[i].lng));
+    }
+    centerLat /= items.length;
+    centerLng /= items.length;
+
+    map = new naver.maps.Map('naver-map', {
+      center: new naver.maps.LatLng(centerLat, centerLng),
+      zoom: 15,
+      mapTypeControl: false,
+      zoomControlOptions: { position: naver.maps.Position.TOP_RIGHT },
+    });
+
+    for (var i = 0; i < items.length; i++) {
+      var lot = items[i];
+      var position = new naver.maps.LatLng(lot.lat, lot.lng);
+      var color = lot.isFree ? '#10b981' : '#3b82f6';
+
+      var marker = new naver.maps.Marker({
+        position: position,
+        map: map,
+        icon: {
+          content: '<div style="width:40px;height:40px;background:' + color + ';border-radius:50%;display:flex;align-items:center;justify-content:center;color:white;font-weight:900;font-size:16px;border:3px solid white;box-shadow:0 2px 8px rgba(0,0,0,0.3);">P</div>',
+          anchor: new naver.maps.Point(20, 20),
+        },
+      });
+
+      var naverUrl = 'https://map.naver.com/p/search/' + encodeURIComponent(lot.address);
+      var kakaoUrl = 'https://map.kakao.com/link/map/' + encodeURIComponent(lot.name) + ',' + lot.lat + ',' + lot.lng;
+
+      var infoWindow = new naver.maps.InfoWindow({
+        content: '<div style="padding:12px 16px;min-width:220px;font-size:13px;line-height:1.5;">' +
+          '<strong style="font-size:14px;">' + lot.name + '</strong><br>' +
+          '<span style="color:#666;">' + lot.address + '</span><br>' +
+          '<span style="color:' + color + ';font-weight:600;">' + (lot.isFree ? '무료' : lot.feeInfo || '유료') + '</span>' +
+          (lot.totalSpaces ? ' · ' + lot.totalSpaces + '면' : '') +
+          '<div style="display:flex;gap:6px;margin-top:8px;">' +
+            '<a href="' + naverUrl + '" target="_blank" style="display:inline-flex;align-items:center;gap:4px;padding:4px 10px;font-size:11px;font-weight:700;color:#15803d;background:#f0fdf4;border-radius:6px;text-decoration:none;">네이버지도</a>' +
+            '<a href="' + kakaoUrl + '" target="_blank" style="display:inline-flex;align-items:center;gap:4px;padding:4px 10px;font-size:11px;font-weight:700;color:#854d0e;background:#fefce8;border-radius:6px;text-decoration:none;">카카오맵</a>' +
+          '</div>' +
+          '</div>',
+        borderWidth: 0,
+        borderColor: 'transparent',
+        backgroundColor: 'white',
+        anchorSize: new naver.maps.Size(10, 10),
+        pixelOffset: new naver.maps.Point(0, -4),
+      });
+
+      markers.push(marker);
+      infoWindows.push(infoWindow);
+
+      (function(m, iw) {
+        naver.maps.Event.addListener(m, 'click', function() {
+          if (openInfoWindow) openInfoWindow.close();
+          iw.open(map, m);
+          openInfoWindow = iw;
+        });
+      })(marker, infoWindow);
+    }
+
+    if (items.length > 1) {
+      map.fitBounds(bounds, { top: 50, right: 50, bottom: 50, left: 50 });
+    }
+  }
+
+  // === 필터 + 페이지네이션 ===
+  var ITEMS_PER_PAGE = 7;
+  var currentFilter = 'all';
+  var currentPage = 1;
+  var allCards = [];
+  var filteredIndices = [];
+
+  function initFilterAndPagination() {
+    allCards = Array.from(document.querySelectorAll('.parking-card'));
+
+    document.querySelectorAll('.filter-btn').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        currentFilter = btn.getAttribute('data-filter');
+        currentPage = 1;
+        updateFilterButtons();
+        applyFilterAndPagination();
+      });
+    });
+
+    applyFilterAndPagination();
+  }
+
+  function updateFilterButtons() {
+    document.querySelectorAll('.filter-btn').forEach(function(btn) {
+      var f = btn.getAttribute('data-filter');
+      btn.classList.remove('active');
+      if (f === currentFilter) {
+        btn.classList.add('active');
+        if (f === 'all') {
+          btn.style.background = '#111827'; btn.style.color = '#fff'; btn.style.borderColor = '#111827';
+        } else if (f === 'free') {
+          btn.style.background = '#10b981'; btn.style.color = '#fff'; btn.style.borderColor = '#10b981';
+        } else {
+          btn.style.background = '#3b82f6'; btn.style.color = '#fff'; btn.style.borderColor = '#3b82f6';
+        }
+      } else {
+        if (f === 'all') {
+          btn.style.background = '#fff'; btn.style.color = '#374151'; btn.style.borderColor = '#d1d5db';
+        } else if (f === 'free') {
+          btn.style.background = '#fff'; btn.style.color = '#059669'; btn.style.borderColor = '#10b981';
+        } else {
+          btn.style.background = '#fff'; btn.style.color = '#2563eb'; btn.style.borderColor = '#3b82f6';
+        }
+      }
+    });
+  }
+
+  function applyFilterAndPagination() {
+    filteredIndices = [];
+    for (var i = 0; i < allCards.length; i++) {
+      var isFree = allCards[i].getAttribute('data-isfree') === 'true';
+      if (currentFilter === 'all' || (currentFilter === 'free' && isFree) || (currentFilter === 'paid' && !isFree)) {
+        filteredIndices.push(i);
+      }
+    }
+
+    var countEl = document.getElementById('result-count');
+    if (countEl) countEl.textContent = '검색 결과: ' + filteredIndices.length + '건';
+
+    var totalPages = Math.ceil(filteredIndices.length / ITEMS_PER_PAGE);
+    if (currentPage > totalPages) currentPage = totalPages || 1;
+
+    var startIdx = (currentPage - 1) * ITEMS_PER_PAGE;
+    var endIdx = startIdx + ITEMS_PER_PAGE;
+    var visibleIndices = filteredIndices.slice(startIdx, endIdx);
+
+    for (var i = 0; i < allCards.length; i++) {
+      allCards[i].style.display = visibleIndices.indexOf(i) !== -1 ? '' : 'none';
+    }
+
+    if (markers.length > 0) {
+      for (var i = 0; i < markers.length; i++) {
+        var isFree = items[i] && items[i].isFree;
+        var show = currentFilter === 'all' || (currentFilter === 'free' && isFree) || (currentFilter === 'paid' && !isFree);
+        markers[i].setVisible(show);
+      }
+      if (openInfoWindow) { openInfoWindow.close(); openInfoWindow = null; }
+
+      if (filteredIndices.length > 0 && map) {
+        var bounds = new naver.maps.LatLngBounds();
+        for (var j = 0; j < filteredIndices.length; j++) {
+          var lot = items[filteredIndices[j]];
+          if (lot) bounds.extend(new naver.maps.LatLng(lot.lat, lot.lng));
+        }
+        if (filteredIndices.length > 1) {
+          map.fitBounds(bounds, { top: 50, right: 50, bottom: 50, left: 50 });
+        } else {
+          var singleLot = items[filteredIndices[0]];
+          if (singleLot) {
+            map.setCenter(new naver.maps.LatLng(singleLot.lat, singleLot.lng));
+            map.setZoom(16);
+          }
+        }
+      }
+    }
+
+    renderPagination(totalPages);
+  }
+
+  function renderPagination(totalPages) {
+    var container = document.getElementById('pagination');
+    if (!container) return;
+    container.innerHTML = '';
+
+    if (totalPages <= 1) return;
+
+    var prevBtn = document.createElement('button');
+    prevBtn.textContent = '\u2039';
+    prevBtn.className = 'w-9 h-9 flex items-center justify-center rounded-lg text-sm font-bold transition-all ' +
+      (currentPage === 1 ? 'text-gray-300 cursor-not-allowed' : 'text-gray-600 hover:bg-gray-100 cursor-pointer');
+    prevBtn.disabled = currentPage === 1;
+    prevBtn.addEventListener('click', function() {
+      if (currentPage > 1) { currentPage--; applyFilterAndPagination(); scrollToCards(); }
+    });
+    container.appendChild(prevBtn);
+
+    for (var p = 1; p <= totalPages; p++) {
+      var pageBtn = document.createElement('button');
+      pageBtn.textContent = p;
+      pageBtn.setAttribute('data-page', p);
+      pageBtn.className = 'w-9 h-9 flex items-center justify-center rounded-lg text-sm font-bold transition-all cursor-pointer ' +
+        (p === currentPage ? 'bg-emerald-700 text-white shadow-sm' : 'text-gray-600 hover:bg-gray-100');
+      pageBtn.addEventListener('click', function() {
+        currentPage = parseInt(this.getAttribute('data-page'));
+        applyFilterAndPagination();
+        scrollToCards();
+      });
+      container.appendChild(pageBtn);
+    }
+
+    var nextBtn = document.createElement('button');
+    nextBtn.textContent = '\u203A';
+    nextBtn.className = 'w-9 h-9 flex items-center justify-center rounded-lg text-sm font-bold transition-all ' +
+      (currentPage === totalPages ? 'text-gray-300 cursor-not-allowed' : 'text-gray-600 hover:bg-gray-100 cursor-pointer');
+    nextBtn.disabled = currentPage === totalPages;
+    nextBtn.addEventListener('click', function() {
+      if (currentPage < totalPages) { currentPage++; applyFilterAndPagination(); scrollToCards(); }
+    });
+    container.appendChild(nextBtn);
+  }
+
+  function scrollToCards() {
+    var filterEl = document.getElementById('filter-buttons');
+    if (filterEl) {
+      var rect = filterEl.getBoundingClientRect();
+      var scrollTop = window.pageYOffset + rect.top - 20;
+      window.scrollTo({ top: Math.max(0, scrollTop), behavior: 'smooth' });
+    }
+  }
+
+  // 카드 클릭 → 개별 주차장 페이지 이동
+  document.querySelectorAll('.parking-card').forEach(function(card) {
+    card.addEventListener('click', function(e) {
+      if (e.target.closest('a')) return;
+      var href = card.getAttribute('data-href');
+      if (href) window.location.href = href;
+    });
+  });
+
+  // 초기화
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function() { initMap(); initFilterAndPagination(); });
+  } else {
+    setTimeout(function() { initMap(); initFilterAndPagination(); }, 100);
+  }
+</script>
