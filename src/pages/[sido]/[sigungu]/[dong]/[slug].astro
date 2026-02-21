@@ -639,10 +639,21 @@ const images: string[] = itemForDisplay.images || [];
     {images.length > 0 ? (
       <div class="grid grid-cols-2 md:grid-cols-3 gap-3">
         {images.map((src, i) => (
-          <div class="relative aspect-[4/3] rounded-xl overflow-hidden bg-gray-100">
-            <img src={src} alt={`${displayName} 현장 사진 ${i + 1}`} class="w-full h-full object-cover" loading="lazy" />
+          <div class="relative aspect-[4/3] rounded-xl overflow-hidden bg-gray-100 cursor-pointer" data-lightbox={i}>
+            <img src={src} alt={`${displayName} 현장 사진 ${i + 1}`} class="w-full h-full object-cover hover:scale-105 transition-transform duration-300" loading="lazy" />
           </div>
         ))}
+      </div>
+      <div id="lightbox" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/80 backdrop-blur-sm" style="display:none;">
+        <button id="lb-close" class="absolute top-4 right-4 z-10 w-10 h-10 flex items-center justify-center rounded-full bg-white/20 text-white text-2xl hover:bg-white/40 transition-colors">&times;</button>
+        {images.length > 1 && (
+          <button id="lb-prev" class="absolute left-3 top-1/2 -translate-y-1/2 z-10 w-10 h-10 flex items-center justify-center rounded-full bg-white/20 text-white text-xl hover:bg-white/40 transition-colors">&#8249;</button>
+        )}
+        {images.length > 1 && (
+          <button id="lb-next" class="absolute right-3 top-1/2 -translate-y-1/2 z-10 w-10 h-10 flex items-center justify-center rounded-full bg-white/20 text-white text-xl hover:bg-white/40 transition-colors">&#8250;</button>
+        )}
+        <img id="lb-img" src="" alt="" class="max-w-[90vw] max-h-[85vh] object-contain rounded-lg shadow-2xl" />
+        <div id="lb-counter" class="absolute bottom-4 left-1/2 -translate-x-1/2 text-white/70 text-sm font-medium"></div>
       </div>
     ) : (
       <div class="border-2 border-dashed border-gray-200 rounded-2xl p-8 text-center">
@@ -1291,6 +1302,42 @@ const images: string[] = itemForDisplay.images || [];
       document.addEventListener('DOMContentLoaded', function() { initDetailMap(); });
     } else {
       setTimeout(function() { initDetailMap(); }, 100);
+    }
+  </script>
+  <script>
+    const lightbox = document.getElementById('lightbox');
+    const lbImg = document.getElementById('lb-img');
+    const lbCounter = document.getElementById('lb-counter');
+    const lbClose = document.getElementById('lb-close');
+    const lbPrev = document.getElementById('lb-prev');
+    const lbNext = document.getElementById('lb-next');
+    if (lightbox && lbImg) {
+      const thumbs = document.querySelectorAll('[data-lightbox]');
+      const srcs = Array.from(thumbs).map(t => t.querySelector('img')?.src || '');
+      let cur = 0;
+      function show(i) {
+        cur = (i + srcs.length) % srcs.length;
+        lbImg.src = srcs[cur];
+        lbImg.alt = `사진 ${cur + 1}`;
+        if (lbCounter) lbCounter.textContent = `${cur + 1} / ${srcs.length}`;
+        lightbox.style.display = 'flex';
+        document.body.style.overflow = 'hidden';
+      }
+      function hide() {
+        lightbox.style.display = 'none';
+        document.body.style.overflow = '';
+      }
+      thumbs.forEach(t => t.addEventListener('click', () => show(Number(t.dataset.lightbox))));
+      lbClose?.addEventListener('click', hide);
+      lbPrev?.addEventListener('click', () => show(cur - 1));
+      lbNext?.addEventListener('click', () => show(cur + 1));
+      lightbox.addEventListener('click', (e) => { if (e.target === lightbox) hide(); });
+      document.addEventListener('keydown', (e) => {
+        if (lightbox.style.display === 'none') return;
+        if (e.key === 'Escape') hide();
+        if (e.key === 'ArrowLeft') show(cur - 1);
+        if (e.key === 'ArrowRight') show(cur + 1);
+      });
     }
   </script>
 </BaseLayout>
