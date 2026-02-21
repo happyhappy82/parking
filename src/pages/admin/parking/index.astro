@@ -123,6 +123,14 @@ export const prerender = false;
     .photo-item:hover .photo-delete{opacity:1}
     .photo-item .photo-name{position:absolute;bottom:0;left:0;right:0;padding:3px 6px;background:rgba(0,0,0,.55);color:white;font-size:10px;text-align:center}
     .photo-msg{font-size:13px;margin-top:6px}
+
+    /* ── Deploy Button ── */
+    .btn-deploy{padding:10px 20px;background:linear-gradient(135deg,#6366f1,#4f46e5);color:white;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;transition:all .2s;box-shadow:0 2px 8px rgba(99,102,241,.3)}
+    .btn-deploy:hover{transform:translateY(-1px);box-shadow:0 4px 12px rgba(99,102,241,.4)}
+    .btn-deploy:active{transform:translateY(0)}
+    .btn-deploy:disabled{opacity:.6;cursor:not-allowed;transform:none}
+    .btn-deploy.deploying{background:linear-gradient(135deg,#f59e0b,#d97706);box-shadow:0 2px 8px rgba(245,158,11,.3)}
+    .btn-deploy.deployed{background:linear-gradient(135deg,#10b981,#059669);box-shadow:0 2px 8px rgba(16,185,129,.3)}
   </style>
 </head>
 <body>
@@ -148,6 +156,9 @@ export const prerender = false;
         <h1 id="pageTitle">주차장 관리</h1>
         <p class="subtitle" id="pageSubtitle">데이터 로딩 중...</p>
       </div>
+      <button class="btn-deploy" id="deployBtn" title="변경사항을 사이트에 반영합니다">
+        🚀 사이트 배포
+      </button>
     </div>
 
     <div class="controls">
@@ -819,6 +830,35 @@ export const prerender = false;
     document.getElementById('logoutBtn').addEventListener('click', async () => {
       await fetch('/api/auth/logout/', { method: 'POST' });
       window.location.href = '/admin/login/';
+    });
+
+    // ─── 사이트 배포 ───
+    document.getElementById('deployBtn').addEventListener('click', async function() {
+      const btn = this;
+      if (btn.disabled) return;
+      if (!confirm('사이트를 배포하시겠습니까?\n(에디토리얼, 사진 등 변경사항이 웹사이트에 반영됩니다)')) return;
+      btn.disabled = true;
+      btn.textContent = '⏳ 배포 요청 중...';
+      btn.classList.add('deploying');
+      btn.classList.remove('deployed');
+      try {
+        const res = await fetch('/api/admin/deploy/', { method: 'POST' });
+        const result = await res.json();
+        if (!res.ok) throw new Error(result.error);
+        btn.textContent = '✅ 배포 시작됨!';
+        btn.classList.remove('deploying');
+        btn.classList.add('deployed');
+        setTimeout(() => {
+          btn.textContent = '🚀 사이트 배포';
+          btn.classList.remove('deployed');
+          btn.disabled = false;
+        }, 5000);
+      } catch (e) {
+        alert('배포 실패: ' + e.message);
+        btn.textContent = '🚀 사이트 배포';
+        btn.classList.remove('deploying');
+        btn.disabled = false;
+      }
     });
 
     // 페이지 로드

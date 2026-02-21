@@ -67,6 +67,16 @@ export async function getStaticPaths() {
             feeInfo: e.lot.주차요금 || null,
           }));
 
+        // 빌드 시 public/images/parking/{sigungu}/{slug}/ 에서 이미지 로딩
+        const imagesDir = path.join(process.cwd(), 'public', 'images', 'parking', sigungu, entry.slug);
+        let lotImages: string[] = [];
+        if (fs.existsSync(imagesDir)) {
+          lotImages = fs.readdirSync(imagesDir)
+            .filter((f: string) => /\.(webp|jpg|jpeg|png)$/i.test(f))
+            .sort()
+            .map((f: string) => `/images/parking/${sigungu}/${entry.slug}/${f}`);
+        }
+
         paths.push({
           params: { sido, sigungu, dong, slug: entry.slug },
           props: {
@@ -77,6 +87,7 @@ export async function getStaticPaths() {
             matchedCategory: entry.category,
             gongdanData,
             editorial: editorialMap.get(`${sigungu}_${lotName}`) || null,
+            lotImages,
           },
         });
       }
@@ -87,7 +98,7 @@ export async function getStaticPaths() {
 }
 
 const { sido, sigungu, dong, slug } = Astro.params;
-const { item, nearbyEntries, otherDongs, matchedLot, matchedCategory, gongdanData, editorial } = Astro.props;
+const { item, nearbyEntries, otherDongs, matchedLot, matchedCategory, gongdanData, editorial, lotImages } = Astro.props;
 
 // 매칭된 주차장의 요금정보 찾기
 const matchedFee = (() => {
@@ -147,7 +158,7 @@ const itemForDisplay = {
   dong: null,
   nearbyAmenities: [],
   nearbyPOIs: [],
-  images: [],
+  images: lotImages || [],
 };
 
 // ─── 공단주소 기준 핵심 변수 추출 ───
