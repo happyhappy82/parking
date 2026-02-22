@@ -59,8 +59,6 @@ function extractPhoneFromBigo(bigo: string): string {
 
 // 통계 계산
 const totalCount = entries.length;
-const freeCount = entries.filter(e => (e.lot.주차요금 || '').includes('무료')).length;
-const paidCount = totalCount - freeCount;
 
 // 동별 그룹핑 (공단주소 extractDong 기반)
 const dongMap: Record<string, number> = {};
@@ -147,8 +145,28 @@ const discountInfo = gongdanData ? extractDiscountInfo(gongdanData) : null;
 const residentParking = gongdanData ? extractResidentParking(gongdanData) : null;
 const contactInfo = gongdanData ? extractContact(gongdanData) : null;
 
-const title = `${sigungu} 무료주차장 · 공영주차장 지도 - 위치·요금 안내 | 주차장 지도`;
-const description = `${sigungu} 무료주차장 ${freeCount}곳, 유료주차장 ${paidCount}곳 위치·요금·운영시간 안내. ${dongList.slice(0, 5).map(([d]) => d).join(', ')} 등 동별 주차장 검색.`;
+// 카테고리별 색상 매핑
+const categoryBgColors: Record<string, string> = {
+  '노상': 'bg-amber-50 text-amber-600',
+  '노외': 'bg-blue-50 text-blue-600',
+  '부설': 'bg-violet-50 text-violet-600',
+  '시설': 'bg-emerald-50 text-emerald-600',
+};
+const categoryBorderColors: Record<string, string> = {
+  '노상': 'border-amber-500 text-amber-600',
+  '노외': 'border-blue-500 text-blue-600',
+  '부설': 'border-violet-500 text-violet-600',
+  '시설': 'border-emerald-500 text-emerald-600',
+};
+const categoryBadgeColors: Record<string, string> = {
+  '노상': 'bg-amber-50 text-amber-600',
+  '노외': 'bg-blue-50 text-blue-600',
+  '부설': 'bg-violet-50 text-violet-600',
+  '시설': 'bg-emerald-50 text-emerald-600',
+};
+
+const title = `${sigungu} 공영주차장 지도 - 위치·요금 안내 | 주차장 지도`;
+const description = `${sigungu} 공영주차장 ${totalCount}곳 위치·요금·운영시간 안내. ${dongList.slice(0, 5).map(([d]) => d).join(', ')} 등 동별 주차장 검색.`;
 const canonical = `https://parkingmap.kr/${encodeURIComponent(sido!)}/${encodeURIComponent(sigungu!)}/`;
 
 const breadcrumbs = [
@@ -167,7 +185,6 @@ const mapItems = entries
     slug: e.slug,
     dong: e.dong || '기타',
     category: e.category,
-    isFree: (e.lot.주차요금 || '').includes('무료'),
     spaces: e.lot.면수 || e.lot.구획수 || null,
     address: e.lot.위치 || e.lot.소재지 || e.lot.주소 || '',
   }));
@@ -196,19 +213,20 @@ const mapItems = entries
     {entries.length > 0 ? (
       <>
         <!-- 통계 카드 -->
-        <div class="grid grid-cols-3 gap-3 mb-6">
+        <div class={`grid gap-3 mb-6 ${parkingSummary.length >= 3 ? `grid-cols-${Math.min(parkingSummary.length + 1, 4)}` : 'grid-cols-3'}`}>
           <div class="bg-gray-50 rounded-xl p-4 text-center">
             <p class="text-2xl font-black text-gray-900">{totalCount}</p>
-            <p class="text-xs text-gray-500 mt-1">전체 주차장</p>
+            <p class="text-xs text-gray-500 mt-1">전체</p>
           </div>
-          <div class="bg-emerald-50 rounded-xl p-4 text-center">
-            <p class="text-2xl font-black text-emerald-600">{freeCount}</p>
-            <p class="text-xs text-emerald-600 mt-1">무료 주차장</p>
-          </div>
-          <div class="bg-blue-50 rounded-xl p-4 text-center">
-            <p class="text-2xl font-black text-blue-600">{paidCount}</p>
-            <p class="text-xs text-blue-600 mt-1">유료 주차장</p>
-          </div>
+          {parkingSummary.map((item) => {
+            const colors = (categoryBgColors[item.label] || 'bg-gray-50 text-gray-600').split(' ');
+            return (
+              <div class={`${colors[0]} rounded-xl p-4 text-center`}>
+                <p class={`text-2xl font-black ${colors[1]}`}>{item.count}</p>
+                <p class={`text-xs ${colors[1]} mt-1`}>{item.label}</p>
+              </div>
+            );
+          })}
         </div>
 
         <!-- 동별 바로가기 -->
@@ -234,16 +252,18 @@ const mapItems = entries
         </div>
 
         <!-- 필터 버튼 -->
-        <div id="filter-buttons" class="flex gap-2 mb-4">
+        <div id="filter-buttons" class="flex flex-wrap gap-2 mb-4">
           <button data-filter="all" class="filter-btn active px-4 py-2 text-sm font-bold rounded-xl border-2 border-gray-900 bg-gray-900 text-white transition-all">
             전체 <span class="ml-1 text-xs opacity-80">{totalCount}</span>
           </button>
-          <button data-filter="free" class="filter-btn px-4 py-2 text-sm font-bold rounded-xl border-2 border-emerald-500 text-emerald-600 bg-white hover:bg-emerald-50 transition-all">
-            무료 <span class="ml-1 text-xs opacity-80">{freeCount}</span>
-          </button>
-          <button data-filter="paid" class="filter-btn px-4 py-2 text-sm font-bold rounded-xl border-2 border-blue-500 text-blue-600 bg-white hover:bg-blue-50 transition-all">
-            유료 <span class="ml-1 text-xs opacity-80">{paidCount}</span>
-          </button>
+          {parkingSummary.map((item) => {
+            const cls = categoryBorderColors[item.label] || 'border-gray-400 text-gray-600';
+            return (
+              <button data-filter={item.label} class={`filter-btn px-4 py-2 text-sm font-bold rounded-xl border-2 ${cls} bg-white hover:opacity-80 transition-all`}>
+                {item.label} <span class="ml-1 text-xs opacity-80">{item.count}</span>
+              </button>
+            );
+          })}
         </div>
 
         <!-- 검색 결과 카운트 -->
@@ -255,7 +275,6 @@ const mapItems = entries
             const lotName = entry.lot.주차장명 || entry.lot.시설명 || '';
             const address = entry.lot.소재지 || entry.lot.위치 || entry.lot.주소 || '';
             const spaces = parseInt(entry.lot.면수) || parseInt(entry.lot.구획수) || 0;
-            const isFree = (entry.lot.주차요금 || '').includes('무료');
             const feeText = entry.lot.주차요금 || getFeeByGrade(entry.lot.급지, entry.category, gongdanData) || '';
             const phone = extractPhoneFromBigo(entry.lot.비고 || '');
             const operatingHours = entry.lot.운영시간 || '';
@@ -265,15 +284,17 @@ const mapItems = entries
             const detailHref = `/${encodeURIComponent(sido!)}/${encodeURIComponent(sigungu!)}/${encodeURIComponent(entryDong)}/${encodeURIComponent(entry.slug)}/`;
 
             return (
-              <div class="parking-card p-5 border border-gray-200 rounded-2xl hover:border-emerald-200 hover:shadow-md transition-all cursor-pointer" data-index={i} data-isfree={isFree ? 'true' : 'false'} data-href={detailHref}>
+              <div class="parking-card p-5 border border-gray-200 rounded-2xl hover:border-emerald-200 hover:shadow-md transition-all cursor-pointer" data-index={i} data-category={entry.category} data-href={detailHref}>
                 <div class="flex items-start justify-between gap-4">
                   <div class="flex-1 min-w-0">
                     <div class="flex items-center gap-2 mb-1.5 flex-wrap">
                       <a href={detailHref} class="font-bold text-gray-900 text-lg truncate hover:text-emerald-600 transition-colors">{lotName}</a>
-                      <span class={`shrink-0 px-2 py-0.5 text-xs font-semibold rounded-md ${isFree ? 'bg-emerald-50 text-emerald-600' : 'bg-blue-50 text-blue-600'}`}>
-                        {isFree ? '무료' : '유료'}
-                      </span>
-                      <span class="shrink-0 px-2 py-0.5 text-xs font-medium rounded-md bg-gray-100 text-gray-500">
+                      <span class={`shrink-0 px-2 py-0.5 text-xs font-semibold rounded-md ${
+                        entry.category === '노상' ? 'bg-amber-50 text-amber-600' :
+                        entry.category === '노외' ? 'bg-blue-50 text-blue-600' :
+                        entry.category === '부설' ? 'bg-violet-50 text-violet-600' :
+                        'bg-emerald-50 text-emerald-600'
+                      }`}>
                         {entry.category}
                       </span>
                       {grade && (
@@ -333,24 +354,6 @@ const mapItems = entries
 
         <!-- 페이지네이션 -->
         <div id="pagination" class="flex items-center justify-center gap-1 mb-8"></div>
-
-        {/* ━━━ 공단 주차장 현황 요약 ━━━ */}
-        {gongdanData && parkingSummary.length > 0 && (
-          <div class="mb-6">
-            <h2 class="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
-              <svg class="w-5 h-5 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
-              {sigungu} 공영주차장 현황
-            </h2>
-            <div class={`grid gap-3 ${parkingSummary.length === 4 ? 'grid-cols-4' : 'grid-cols-3'}`}>
-              {parkingSummary.map((item) => (
-                <div class="bg-gray-50 rounded-xl p-4 text-center">
-                  <p class="text-2xl font-black text-gray-900">{item.count}</p>
-                  <p class="text-xs text-gray-500 mt-1">{item.label}주차장</p>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
 
         {/* ━━━ 요금표 ━━━ */}
         {feeInfo && feeInfo.type === 'grade' && (
@@ -642,7 +645,7 @@ const mapItems = entries
             href="/"
             class="inline-block px-6 py-3 bg-emerald-700 text-white font-semibold rounded-xl hover:bg-emerald-800 transition-colors"
           >
-            서울 무료주차장 검색
+            서울 공영주차장 검색
           </a>
         </div>
 
@@ -716,7 +719,8 @@ const mapItems = entries
     for (var i = 0; i < items.length; i++) {
       var lot = items[i];
       var position = new naver.maps.LatLng(lot.lat, lot.lng);
-      var color = lot.isFree ? '#10b981' : '#3b82f6';
+      var catColors = { '노상': '#f59e0b', '노외': '#3b82f6', '부설': '#8b5cf6', '시설': '#10b981' };
+      var color = catColors[lot.category] || '#6b7280';
 
       var marker = new naver.maps.Marker({
         position: position,
@@ -734,7 +738,7 @@ const mapItems = entries
         content: '<div style="padding:12px 16px;min-width:220px;font-size:13px;line-height:1.5;">' +
           '<strong style="font-size:14px;">' + lot.name + '</strong><br>' +
           '<span style="color:#666;">' + lot.address + '</span><br>' +
-          '<span style="color:' + color + ';font-weight:600;">' + (lot.isFree ? '무료' : lot.feeInfo || '유료') + '</span>' +
+          '<span style="color:' + color + ';font-weight:600;">' + lot.category + '</span>' +
           (lot.totalSpaces ? ' · ' + lot.totalSpaces + '면' : '') +
           '<div style="display:flex;gap:6px;margin-top:8px;">' +
             '<a href="' + naverUrl + '" target="_blank" style="display:inline-flex;align-items:center;gap:4px;padding:4px 10px;font-size:11px;font-weight:700;color:#15803d;background:#f0fdf4;border-radius:6px;text-decoration:none;">네이버지도</a>' +
@@ -788,26 +792,18 @@ const mapItems = entries
   }
 
   function updateFilterButtons() {
+    var activeColors = { 'all': '#111827', '노상': '#f59e0b', '노외': '#3b82f6', '부설': '#8b5cf6', '시설': '#10b981' };
+    var inactiveColors = { 'all': {bg:'#fff',text:'#374151',border:'#d1d5db'}, '노상': {bg:'#fff',text:'#d97706',border:'#f59e0b'}, '노외': {bg:'#fff',text:'#2563eb',border:'#3b82f6'}, '부설': {bg:'#fff',text:'#7c3aed',border:'#8b5cf6'}, '시설': {bg:'#fff',text:'#059669',border:'#10b981'} };
     document.querySelectorAll('.filter-btn').forEach(function(btn) {
       var f = btn.getAttribute('data-filter');
       btn.classList.remove('active');
       if (f === currentFilter) {
         btn.classList.add('active');
-        if (f === 'all') {
-          btn.style.background = '#111827'; btn.style.color = '#fff'; btn.style.borderColor = '#111827';
-        } else if (f === 'free') {
-          btn.style.background = '#10b981'; btn.style.color = '#fff'; btn.style.borderColor = '#10b981';
-        } else {
-          btn.style.background = '#3b82f6'; btn.style.color = '#fff'; btn.style.borderColor = '#3b82f6';
-        }
+        var ac = activeColors[f] || '#6b7280';
+        btn.style.background = ac; btn.style.color = '#fff'; btn.style.borderColor = ac;
       } else {
-        if (f === 'all') {
-          btn.style.background = '#fff'; btn.style.color = '#374151'; btn.style.borderColor = '#d1d5db';
-        } else if (f === 'free') {
-          btn.style.background = '#fff'; btn.style.color = '#059669'; btn.style.borderColor = '#10b981';
-        } else {
-          btn.style.background = '#fff'; btn.style.color = '#2563eb'; btn.style.borderColor = '#3b82f6';
-        }
+        var ic = inactiveColors[f] || {bg:'#fff',text:'#374151',border:'#d1d5db'};
+        btn.style.background = ic.bg; btn.style.color = ic.text; btn.style.borderColor = ic.border;
       }
     });
   }
@@ -815,8 +811,8 @@ const mapItems = entries
   function applyFilterAndPagination() {
     filteredIndices = [];
     for (var i = 0; i < allCards.length; i++) {
-      var isFree = allCards[i].getAttribute('data-isfree') === 'true';
-      if (currentFilter === 'all' || (currentFilter === 'free' && isFree) || (currentFilter === 'paid' && !isFree)) {
+      var cardCategory = allCards[i].getAttribute('data-category');
+      if (currentFilter === 'all' || currentFilter === cardCategory) {
         filteredIndices.push(i);
       }
     }
