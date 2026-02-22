@@ -125,8 +125,10 @@ export function matchFeeEntry(lotName: string, gongdanData: any): any | null {
   const feeSources = [
     gongdanData.노상주차장?.요금정보,
     gongdanData.노외주차장?.요금정보,
+    gongdanData.부설주차장?.요금정보,
     gongdanData.공영주차장?.노외주차장?.요금정보,
     gongdanData.공영주차장?.노상주차장?.요금정보,
+    gongdanData.공영주차장?.부설주차장?.요금정보,
   ];
   const norm = normalizeParkingName(lotName);
   for (const fees of feeSources) {
@@ -161,6 +163,11 @@ export function buildGongdanEntries(
     }
 
     const feeEntry = matchFeeEntry(lot.주차장명 || lot.시설명 || '', gongdanData);
+
+    // 요금정보의 운영시간을 lot에 복사 (lot에 없는 경우)
+    if (feeEntry?.운영시간 && !lot.운영시간) {
+      lot.운영시간 = feeEntry.운영시간;
+    }
 
     entries.push({ lot, category, dong, slug, feeEntry });
   }
