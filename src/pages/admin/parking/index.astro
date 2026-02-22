@@ -662,7 +662,7 @@ export const prerender = false;
         var saveResult = await saveRes.json();
 
         if (saveRes.ok) {
-          okMsg.textContent = '노션에 저장 완료!';
+          okMsg.textContent = '노션에 저장 완료! 배포 시작 중...';
           okMsg.style.display = 'block';
 
           // 로컬 에디토리얼 캐시도 업데이트
@@ -677,6 +677,16 @@ export const prerender = false;
           };
           document.getElementById('f_updatedAt').value = today;
           applyFilters();
+
+          // 자동 배포 트리거
+          fetch('/api/admin/deploy/', { method: 'POST' })
+            .then(function(r) { return r.json(); })
+            .then(function(d) {
+              okMsg.textContent = d.success ? '노션 저장 + 배포 시작 완료!' : '노션 저장 완료 (배포 실패: ' + (d.error || '알 수 없음') + ')';
+            })
+            .catch(function() {
+              okMsg.textContent = '노션 저장 완료 (배포 요청 실패)';
+            });
         } else {
           errMsg.textContent = saveResult.error || '저장 실패';
           errMsg.style.display = 'block';
