@@ -77,17 +77,20 @@ const sortedEntries = [...entries].sort((a, b) => {
   return bSpaces - aSpaces;
 });
 
-// 노상/노외/부설/시설 개소수 추출
-function extractParkingSummary(data: any) {
-  const summary: { label: string; count: number; total?: number }[] = [];
-  const nosang = data.공영주차장?.노상주차장 || data.노상주차장;
-  const nooe = data.공영주차장?.노외주차장 || data.노외주차장;
-  const buseol = data.공영주차장?.부설주차장 || data.부설주차장;
-  const sisel = data.시설주차장;
-  if (nosang?.개소수) summary.push({ label: '노상', count: nosang.개소수, total: nosang.총주차면수 });
-  if (nooe?.개소수) summary.push({ label: '노외', count: nooe.개소수, total: nooe.총주차면수 });
-  if (buseol?.개소수) summary.push({ label: '부설', count: buseol.개소수 });
-  if (sisel?.개소수) summary.push({ label: '시설', count: sisel.개소수, total: sisel.총주차면수 });
+// 노상/노외/부설/시설 개소수 추출 (실제 entries 기반)
+function extractParkingSummary(lotEntries: GongdanLotEntry[]) {
+  const catCount: Record<string, number> = {};
+  for (const entry of lotEntries) {
+    const cat = entry.category;
+    catCount[cat] = (catCount[cat] || 0) + 1;
+  }
+  const summary: { label: string; count: number }[] = [];
+  const order = ['노상', '노외', '부설', '시설', '공영', '직영', '위탁', '추첨제', '대기순번제'];
+  for (const label of order) {
+    if (catCount[label]) {
+      summary.push({ label, count: catCount[label] });
+    }
+  }
   return summary;
 }
 
@@ -138,7 +141,7 @@ function extractContact(data: any) {
   return data.연락처 || null;
 }
 
-const parkingSummary = gongdanData ? extractParkingSummary(gongdanData) : [];
+const parkingSummary = entries.length > 0 ? extractParkingSummary(entries) : [];
 const feeInfo = gongdanData ? extractFeeInfo(gongdanData) : null;
 const discountInfo = gongdanData ? extractDiscountInfo(gongdanData) : null;
 const residentParking = gongdanData ? extractResidentParking(gongdanData) : null;
@@ -343,7 +346,6 @@ const mapItems = entries
                 <div class="bg-gray-50 rounded-xl p-4 text-center">
                   <p class="text-2xl font-black text-gray-900">{item.count}</p>
                   <p class="text-xs text-gray-500 mt-1">{item.label}주차장</p>
-                  {item.total && <p class="text-xs text-gray-400 mt-0.5">{item.total.toLocaleString()}면</p>}
                 </div>
               ))}
             </div>
