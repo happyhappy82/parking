@@ -667,7 +667,8 @@ async function syncAll() {
 
   for (const page of pages) {
     const pageId = page.id;
-    const date = getPropertyValue(page, 'Date') || today;
+    const rawDate = getPropertyValue(page, 'Date') || today;
+    const date = rawDate.slice(0, 10); // YYYY-MM-DD만 비교 (datetime 포함 시 잘라냄)
 
     if (pageMap[pageId]) {
       // 이미 싱크된 글 → 업데이트 체크 대상
@@ -863,8 +864,8 @@ async function main() {
   console.log(`Page ID: ${syncPageId || 'all'}`);
   console.log('');
 
-  if (triggerType === 'repository_dispatch' && syncPageId && syncAction) {
-    await syncSinglePage(syncPageId, syncAction);
+  if (triggerType === 'repository_dispatch' && syncPageId) {
+    await syncSinglePage(syncPageId, syncAction || 'update');
   } else {
     await syncAll();
   }
