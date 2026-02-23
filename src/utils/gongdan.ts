@@ -120,18 +120,36 @@ export function loadGongdanSigungu(sigungu: string) {
   }
 }
 
-// 요금정보에서 해당 주차장 찾기
-export function matchFeeEntry(lotName: string, gongdanData: any): any | null {
-  const feeSources = [
-    gongdanData.노상주차장?.요금정보,
-    gongdanData.노외주차장?.요금정보,
-    gongdanData.부설주차장?.요금정보,
-    gongdanData.공영주차장?.노외주차장?.요금정보,
-    gongdanData.공영주차장?.노상주차장?.요금정보,
-    gongdanData.공영주차장?.부설주차장?.요금정보,
-  ];
+// 요금정보에서 해당 주차장 찾기 (같은 카테고리 우선 매칭)
+export function matchFeeEntry(lotName: string, gongdanData: any, category?: string): any | null {
+  const categorySources: Record<string, (any[] | undefined)[]> = {
+    '노상': [
+      gongdanData.노상주차장?.요금정보,
+      gongdanData.공영주차장?.노상주차장?.요금정보,
+    ],
+    '노외': [
+      gongdanData.노외주차장?.요금정보,
+      gongdanData.공영주차장?.노외주차장?.요금정보,
+    ],
+    '부설': [
+      gongdanData.부설주차장?.요금정보,
+      gongdanData.공영주차장?.부설주차장?.요금정보,
+    ],
+  };
+
+  // 같은 카테고리를 먼저, 나머지를 뒤에 배치
+  const orderedSources: (any[] | undefined)[] = [];
+  if (category && categorySources[category]) {
+    orderedSources.push(...categorySources[category]);
+  }
+  for (const [cat, sources] of Object.entries(categorySources)) {
+    if (cat !== category) {
+      orderedSources.push(...sources);
+    }
+  }
+
   const norm = normalizeParkingName(lotName);
-  for (const fees of feeSources) {
+  for (const fees of orderedSources) {
     if (!Array.isArray(fees)) continue;
     const found = fees.find((f: any) => normalizeParkingName(f.주차장명 || '') === norm);
     if (found) return found;
@@ -162,7 +180,7 @@ export function buildGongdanEntries(
       slugCount.set(slug, 1);
     }
 
-    const feeEntry = matchFeeEntry(lot.주차장명 || lot.시설명 || '', gongdanData);
+    const feeEntry = matchFeeEntry(lot.주차장명 || lot.시설명 || '', gongdanData, category);
 
     // 요금정보의 운영시간을 lot에 복사 (lot에 없는 경우)
     if (feeEntry?.운영시간 && !lot.운영시간) {

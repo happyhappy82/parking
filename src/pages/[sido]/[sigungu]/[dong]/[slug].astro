@@ -104,7 +104,7 @@ const { item, nearbyEntries, otherDongs, matchedLot, matchedCategory, gongdanDat
 const matchedFee = (() => {
   if (!gongdanData || !matchedLot) return null;
   const lotName = matchedLot.주차장명 || matchedLot.시설명 || '';
-  const found = matchFeeEntry(lotName, gongdanData);
+  const found = matchFeeEntry(lotName, gongdanData, matchedCategory);
   if (found) return found;
   // 주차장 항목 자체에 요금 필드 (송파구, 중구 등)
   const lot = matchedLot;
