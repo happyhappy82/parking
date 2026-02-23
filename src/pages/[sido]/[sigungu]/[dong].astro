@@ -62,13 +62,25 @@ const sortedEntries = [...entries].sort((a, b) => {
   return bSpaces - aSpaces;
 });
 
-// 통계 계산
+// 카테고리별 통계 계산
 const totalCount = entries.length;
-const freeCount = entries.filter(e => (e.lot.주차요금 || '').includes('무료')).length;
-const paidCount = totalCount - freeCount;
+const categoryDefs = [
+  { key: '노상', bg: 'bg-emerald-50', text: 'text-emerald-600', border: 'border-emerald-500', hex: '#10b981' },
+  { key: '노외', bg: 'bg-blue-50', text: 'text-blue-600', border: 'border-blue-500', hex: '#3b82f6' },
+  { key: '부설', bg: 'bg-amber-50', text: 'text-amber-600', border: 'border-amber-500', hex: '#f59e0b' },
+];
+const mainKeys = categoryDefs.map(c => c.key);
+const categories = categoryDefs
+  .map(c => ({ ...c, count: entries.filter(e => e.category === c.key).length }))
+  .filter(c => c.count > 0);
+const etcCount = entries.filter(e => !mainKeys.includes(e.category)).length;
+if (etcCount > 0) {
+  categories.push({ key: '기타', count: etcCount, bg: 'bg-gray-100', text: 'text-gray-600', border: 'border-gray-400', hex: '#6b7280' });
+}
 
 const title = `${sigungu} ${dong} 무료주차장 · 공영주차장 지도 | 주차장 지도`;
-const description = `${sigungu} ${dong} 무료주차장 ${freeCount}곳, 유료주차장 ${paidCount}곳 위치·요금 안내. 네이버지도·카카오맵으로 바로 길찾기.`;
+const catDesc = categories.map(c => `${c.key} ${c.count}곳`).join(', ');
+const description = `${sigungu} ${dong} 공영주차장 ${totalCount}곳(${catDesc}) 위치·요금 안내. 네이버지도·카카오맵으로 바로 길찾기.`;
 const canonical = `https://parkingmap.kr/${encodeURIComponent(sido!)}/${encodeURIComponent(sigungu!)}/${encodeURIComponent(dong!)}/`;
 
 const breadcrumbs = [
@@ -116,19 +128,13 @@ const mapItems = entries
     </div>
 
     <!-- 통계 카드 -->
-    <div class="grid grid-cols-3 gap-3 mb-6">
-      <div class="bg-gray-50 rounded-xl p-4 text-center">
-        <p class="text-2xl font-black text-gray-900">{totalCount}</p>
-        <p class="text-xs text-gray-500 mt-1">전체 주차장</p>
-      </div>
-      <div class="bg-emerald-50 rounded-xl p-4 text-center">
-        <p class="text-2xl font-black text-emerald-600">{freeCount}</p>
-        <p class="text-xs text-emerald-600 mt-1">무료 주차장</p>
-      </div>
-      <div class="bg-blue-50 rounded-xl p-4 text-center">
-        <p class="text-2xl font-black text-blue-600">{paidCount}</p>
-        <p class="text-xs text-blue-600 mt-1">유료 주차장</p>
-      </div>
+    <div class="flex gap-3 mb-6">
+      {categories.map(cat => (
+        <div class={`${cat.bg} rounded-xl p-4 text-center flex-1`}>
+          <p class={`text-2xl font-black ${cat.text}`}>{cat.count}</p>
+          <p class={`text-xs ${cat.text} mt-1`}>{cat.key} 주차장</p>
+        </div>
+      ))}
     </div>
 
     <!-- 네이버 지도 -->
@@ -138,15 +144,14 @@ const mapItems = entries
 
     <!-- 필터 버튼 -->
     <div id="filter-buttons" class="flex gap-2 mb-4">
-      <button data-filter="all" class="filter-btn active px-4 py-2 text-sm font-bold rounded-xl border-2 border-gray-900 bg-gray-900 text-white transition-all">
+      <button data-filter="all" data-hex="#111827" class="filter-btn active px-4 py-2 text-sm font-bold rounded-xl border-2 border-gray-900 bg-gray-900 text-white transition-all">
         전체 <span class="ml-1 text-xs opacity-80">{totalCount}</span>
       </button>
-      <button data-filter="free" class="filter-btn px-4 py-2 text-sm font-bold rounded-xl border-2 border-emerald-500 text-emerald-600 bg-white hover:bg-emerald-50 transition-all">
-        무료 <span class="ml-1 text-xs opacity-80">{freeCount}</span>
-      </button>
-      <button data-filter="paid" class="filter-btn px-4 py-2 text-sm font-bold rounded-xl border-2 border-blue-500 text-blue-600 bg-white hover:bg-blue-50 transition-all">
-        유료 <span class="ml-1 text-xs opacity-80">{paidCount}</span>
-      </button>
+      {categories.map(cat => (
+        <button data-filter={cat.key} data-hex={cat.hex} class={`filter-btn px-4 py-2 text-sm font-bold rounded-xl border-2 ${cat.border} ${cat.text} bg-white transition-all`}>
+          {cat.key} <span class="ml-1 text-xs opacity-80">{cat.count}</span>
+        </button>
+      ))}
     </div>
 
     <!-- 검색 결과 카운트 -->
@@ -165,7 +170,7 @@ const mapItems = entries
           const detailHref = `/${encodeURIComponent(sido!)}/${encodeURIComponent(sigungu!)}/${encodeURIComponent(dong!)}/${encodeURIComponent(entry.slug)}/`;
 
           return (
-            <div class="parking-card p-5 border border-gray-200 rounded-2xl hover:border-emerald-200 hover:shadow-md transition-all cursor-pointer" data-index={i} data-isfree={isFree ? 'true' : 'false'} data-href={detailHref}>
+            <div class="parking-card p-5 border border-gray-200 rounded-2xl hover:border-emerald-200 hover:shadow-md transition-all cursor-pointer" data-index={i} data-category={entry.category} data-href={detailHref}>
               <div class="flex items-start justify-between gap-4">
                 <div class="flex-1 min-w-0">
                   <div class="flex items-center gap-2 mb-1.5 flex-wrap">
@@ -279,7 +284,8 @@ const mapItems = entries
     for (var i = 0; i < items.length; i++) {
       var lot = items[i];
       var position = new naver.maps.LatLng(lot.lat, lot.lng);
-      var color = lot.isFree ? '#10b981' : '#3b82f6';
+      var catColors = { '노상': '#10b981', '노외': '#3b82f6', '부설': '#f59e0b' };
+      var color = catColors[lot.category] || '#6b7280';
 
       var marker = new naver.maps.Marker({
         position: position,
@@ -353,24 +359,15 @@ const mapItems = entries
   function updateFilterButtons() {
     document.querySelectorAll('.filter-btn').forEach(function(btn) {
       var f = btn.getAttribute('data-filter');
+      var hex = btn.getAttribute('data-hex');
       btn.classList.remove('active');
       if (f === currentFilter) {
         btn.classList.add('active');
-        if (f === 'all') {
-          btn.style.background = '#111827'; btn.style.color = '#fff'; btn.style.borderColor = '#111827';
-        } else if (f === 'free') {
-          btn.style.background = '#10b981'; btn.style.color = '#fff'; btn.style.borderColor = '#10b981';
-        } else {
-          btn.style.background = '#3b82f6'; btn.style.color = '#fff'; btn.style.borderColor = '#3b82f6';
-        }
+        btn.style.background = hex; btn.style.color = '#fff'; btn.style.borderColor = hex;
       } else {
-        if (f === 'all') {
-          btn.style.background = '#fff'; btn.style.color = '#374151'; btn.style.borderColor = '#d1d5db';
-        } else if (f === 'free') {
-          btn.style.background = '#fff'; btn.style.color = '#059669'; btn.style.borderColor = '#10b981';
-        } else {
-          btn.style.background = '#fff'; btn.style.color = '#2563eb'; btn.style.borderColor = '#3b82f6';
-        }
+        btn.style.background = '#fff';
+        btn.style.color = f === 'all' ? '#374151' : hex;
+        btn.style.borderColor = f === 'all' ? '#d1d5db' : hex;
       }
     });
   }
@@ -378,8 +375,8 @@ const mapItems = entries
   function applyFilterAndPagination() {
     filteredIndices = [];
     for (var i = 0; i < allCards.length; i++) {
-      var isFree = allCards[i].getAttribute('data-isfree') === 'true';
-      if (currentFilter === 'all' || (currentFilter === 'free' && isFree) || (currentFilter === 'paid' && !isFree)) {
+      var cat = allCards[i].getAttribute('data-category');
+      if (currentFilter === 'all' || currentFilter === cat) {
         filteredIndices.push(i);
       }
     }
@@ -400,8 +397,8 @@ const mapItems = entries
 
     if (markers.length > 0) {
       for (var i = 0; i < markers.length; i++) {
-        var isFree = items[i] && items[i].isFree;
-        var show = currentFilter === 'all' || (currentFilter === 'free' && isFree) || (currentFilter === 'paid' && !isFree);
+        var cat = items[i] && items[i].category;
+        var show = currentFilter === 'all' || currentFilter === cat;
         markers[i].setVisible(show);
       }
       if (openInfoWindow) { openInfoWindow.close(); openInfoWindow = null; }
