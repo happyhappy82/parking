@@ -43,12 +43,24 @@ export const POST: APIRoute = async ({ request }) => {
       return json({ error: '필수 파라미터가 누락되었습니다.' }, 400);
     }
 
-    // 1. 이미지를 GitHub에 저장
+    // 1. 이미지를 GitHub에 저장 (기존 파일이 있으면 sha 포함)
     const imagePath = `${IMAGES_BASE_PATH}/${district}/${slug}/${fileName}`;
+    let existingSha: string | undefined;
+    try {
+      const dirPath = `${IMAGES_BASE_PATH}/${district}/${slug}`;
+      const files = await listFiles(dirPath);
+      const existing = files.find(f => f.name === fileName);
+      if (existing) {
+        existingSha = existing.sha;
+      }
+    } catch {
+      // 디렉토리가 없으면 새 파일
+    }
     await saveBinaryFile(
       imagePath,
       base64Data,
-      `img: ${district} ${slug} 사진 추가 (${fileName})`
+      `img: ${district} ${slug} 사진 ${existingSha ? '수정' : '추가'} (${fileName})`,
+      existingSha
     );
 
     // 2. 주차장 JSON에 images 배열 업데이트
