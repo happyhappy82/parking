@@ -5,6 +5,9 @@ import { getFile, saveFile, saveBinaryFile, deleteFile, listFiles } from '../../
 
 const PARKING_DATA_PATH = 'public/data/parking/서울특별시';
 const IMAGES_BASE_PATH = 'public/images/parking';
+const GITHUB_OWNER = import.meta.env.GITHUB_OWNER;
+const GITHUB_REPO = import.meta.env.GITHUB_REPO;
+const GITHUB_BRANCH = import.meta.env.GITHUB_BRANCH || 'main';
 
 // GET: 주차장 이미지 목록
 export const GET: APIRoute = async ({ url }) => {
@@ -24,7 +27,7 @@ export const GET: APIRoute = async ({ url }) => {
         name: f.name,
         path: f.path,
         sha: f.sha,
-        url: `/images/parking/${district}/${slug}/${f.name}`,
+        url: `https://raw.githubusercontent.com/${GITHUB_OWNER}/${GITHUB_REPO}/${GITHUB_BRANCH}/public/images/parking/${district}/${slug}/${f.name}?v=${f.sha}`,
       }));
 
     return json({ images });
