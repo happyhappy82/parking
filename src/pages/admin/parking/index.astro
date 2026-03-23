@@ -293,7 +293,7 @@ export const prerender = false;
             <div class="photo-drop-text">사진을 드래그하거나 클릭하여 업로드</div>
             <div class="photo-drop-sub">JPG, PNG, WebP, ZIP — 자동으로 WebP 변환 (최대 10장)</div>
           </div>
-          <input type="file" id="photoFileInput" accept="image/*,.zip,application/zip,application/x-zip-compressed" multiple style="display:none;" />
+          <input type="file" id="photoFileInput" multiple style="display:none;" />
           <div class="msg msg-success photo-msg" id="photoSuccess"></div>
           <div class="msg msg-error photo-msg" id="photoError"></div>
           <div class="photo-grid" id="photoGrid"></div>
@@ -773,7 +773,7 @@ export const prerender = false;
       if (!currentEditingParking) return;
       const { district, slug } = currentEditingParking;
 
-      // ZIP 파일이 있으면 압축 해제하여 이미지 추출
+      // ZIP 파일이 있으면 압축 해제, 이미지 파일만 수집
       let allImageFiles = [];
       for (const file of Array.from(files)) {
         if (file.name.toLowerCase().endsWith('.zip')) {
@@ -782,10 +782,11 @@ export const prerender = false;
             const extracted = await extractImagesFromZip(file);
             allImageFiles.push(...extracted);
           } catch (e) { showPhotoError('ZIP 해제 실패: ' + e.message); return; }
-        } else {
+        } else if (file.type.startsWith('image/')) {
           allImageFiles.push(file);
         }
       }
+      if (allImageFiles.length === 0) { showPhotoError('이미지 또는 ZIP 파일만 업로드할 수 있습니다.'); return; }
 
       const remaining = 10 - currentPhotos.length;
       const filesToProcess = allImageFiles.slice(0, remaining);
