@@ -759,12 +759,16 @@ export const prerender = false;
       const JSZip = await loadJSZip();
       const zip = await JSZip.loadAsync(zipFile);
       const imageFiles = [];
+      const mimeTypes = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp', gif: 'image/gif', bmp: 'image/bmp' };
       for (const [path, entry] of Object.entries(zip.files)) {
         if (entry.dir) continue;
-        if (!/\.(jpe?g|png|webp|gif|bmp)$/i.test(path)) continue;
-        const blob = await entry.async('blob');
+        if (path.startsWith('__MACOSX/')) continue;
         const name = path.split('/').pop();
-        imageFiles.push(new File([blob], name, { type: blob.type || 'image/jpeg' }));
+        if (name.startsWith('._')) continue;
+        if (!/\.(jpe?g|png|webp|gif|bmp)$/i.test(name)) continue;
+        const ext = name.split('.').pop().toLowerCase();
+        const blob = await entry.async('blob');
+        imageFiles.push(new File([blob], name, { type: mimeTypes[ext] || 'image/jpeg' }));
       }
       return imageFiles;
     }
