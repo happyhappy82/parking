@@ -801,22 +801,24 @@ export const prerender = false;
 
       showPhotoSuccess(filesToProcess.length + '장 업로드 중...');
 
-      // 파일명을 미리 계산 (중복 방지)
-      const usedNums = currentPhotos.map(p => parseInt(p.name.replace('.webp', ''), 10)).filter(n => !isNaN(n));
-      const fileNames = [];
-      for (let i = 0; i < filesToProcess.length; i++) {
-        let next = 1;
-        while (usedNums.includes(next)) next++;
-        usedNums.push(next);
-        fileNames.push(String(next).padStart(2, '0') + '.webp');
-      }
-
       for (let i = 0; i < filesToProcess.length; i++) {
         const file = filesToProcess[i];
         try {
-          const base64 = await convertToWebP(file);
-          const fileName = fileNames[i];
+          // 원본 파일명 유지, 확장자만 .webp로 변경
+          const baseName = file.name.replace(/\.[^.]+$/, '');
+          let fileName, base64;
 
+          try {
+            base64 = await convertToWebP(file);
+            fileName = baseName + '.webp';
+          } catch (convErr) {
+            // WebP 변환 실패 시 원본 그대로 업로드
+            console.warn('WebP 변환 실패, 원본 업로드:', convErr);
+            base64 = await fileToBase64(file);
+            fileName = file.name;
+          }
+
+          // 같은 이름 파일 있으면 덮어쓰기 (SHA 조회)
           const res = await fetch('/api/admin/parking-images/', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -825,7 +827,7 @@ export const prerender = false;
 
           const result = await res.json();
           if (!res.ok) throw new Error(result.error);
-          showPhotoSuccess(fileName + ' 업로드 완료!');
+          showPhotoSuccess(fileName + ' 업로드 완료! (' + (i + 1) + '/' + filesToProcess.length + ')');
         } catch (e) { showPhotoError('업로드 실패: ' + e.message); }
       }
 
@@ -833,11 +835,13 @@ export const prerender = false;
       showPhotoSuccess('모든 사진 업로드 완료!');
     }
 
-    function getNextFileName() {
-      const nums = currentPhotos.map(p => parseInt(p.name.replace('.webp', ''), 10)).filter(n => !isNaN(n));
-      let next = 1;
-      while (nums.includes(next)) next++;
-      return String(next).padStart(2, '0');
+    function fileToBase64(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result.split(',')[1]);
+        reader.onerror = () => reject(new Error('파일 읽기 실패'));
+        reader.readAsDataURL(file);
+      });
     }
 
     function convertToWebP(file) {
