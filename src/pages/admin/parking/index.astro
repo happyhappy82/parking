@@ -293,7 +293,7 @@ export const prerender = false;
             <div class="photo-drop-text">사진을 드래그하거나 클릭하여 업로드</div>
             <div class="photo-drop-sub">JPG, PNG, WebP, ZIP — 자동으로 WebP 변환 (최대 10장)</div>
           </div>
-          <input type="file" id="photoFileInput" accept="image/*,.zip" multiple style="display:none;" />
+          <input type="file" id="photoFileInput" accept="image/*,.zip,application/zip,application/x-zip-compressed" multiple style="display:none;" />
           <div class="msg msg-success photo-msg" id="photoSuccess"></div>
           <div class="msg msg-error photo-msg" id="photoError"></div>
           <div class="photo-grid" id="photoGrid"></div>
@@ -306,7 +306,6 @@ export const prerender = false;
     </div>
   </div>
 
-  <script is:inline src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   <script is:inline>
     const districts = [
       '강남구','강동구','강북구','강서구','관악구',
@@ -745,7 +744,19 @@ export const prerender = false;
     dropZone.addEventListener('drop', (e) => { e.preventDefault(); dropZone.classList.remove('dragover'); handleFiles(e.dataTransfer.files); });
     fileInput.addEventListener('change', (e) => { handleFiles(e.target.files); fileInput.value = ''; });
 
+    async function loadJSZip() {
+      if (window.JSZip) return window.JSZip;
+      return new Promise((resolve, reject) => {
+        const s = document.createElement('script');
+        s.src = 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';
+        s.onload = () => resolve(window.JSZip);
+        s.onerror = () => reject(new Error('JSZip 라이브러리 로드 실패'));
+        document.head.appendChild(s);
+      });
+    }
+
     async function extractImagesFromZip(zipFile) {
+      const JSZip = await loadJSZip();
       const zip = await JSZip.loadAsync(zipFile);
       const imageFiles = [];
       for (const [path, entry] of Object.entries(zip.files)) {
