@@ -291,9 +291,9 @@ export const prerender = false;
           <div class="photo-drop" id="photoDrop">
             <div class="photo-drop-icon">📸</div>
             <div class="photo-drop-text">사진을 드래그하거나 클릭하여 업로드</div>
-            <div class="photo-drop-sub">JPG, PNG, WebP — 자동으로 WebP 변환 (최대 10장)</div>
+            <div class="photo-drop-sub">JPG, PNG, WebP, ZIP — 자동으로 WebP 변환 (최대 10장)</div>
           </div>
-          <input type="file" id="photoFileInput" accept="image/*" multiple style="display:none;" />
+          <input type="file" id="photoFileInput" accept="image/*,.zip" multiple style="display:none;" />
           <div class="msg msg-success photo-msg" id="photoSuccess"></div>
           <div class="msg msg-error photo-msg" id="photoError"></div>
           <div class="photo-grid" id="photoGrid"></div>
@@ -306,6 +306,7 @@ export const prerender = false;
     </div>
   </div>
 
+  <script is:inline src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   <script is:inline>
     const districts = [
       '강남구','강동구','강북구','강서구','관악구',
@@ -744,13 +745,43 @@ export const prerender = false;
     dropZone.addEventListener('drop', (e) => { e.preventDefault(); dropZone.classList.remove('dragover'); handleFiles(e.dataTransfer.files); });
     fileInput.addEventListener('change', (e) => { handleFiles(e.target.files); fileInput.value = ''; });
 
+    async function extractImagesFromZip(zipFile) {
+      const zip = await JSZip.loadAsync(zipFile);
+      const imageFiles = [];
+      for (const [path, entry] of Object.entries(zip.files)) {
+        if (entry.dir) continue;
+        if (!/\.(jpe?g|png|webp|gif|bmp)$/i.test(path)) continue;
+        const blob = await entry.async('blob');
+        const name = path.split('/').pop();
+        imageFiles.push(new File([blob], name, { type: blob.type || 'image/jpeg' }));
+      }
+      return imageFiles;
+    }
+
     async function handleFiles(files) {
       if (!currentEditingParking) return;
       const { district, slug } = currentEditingParking;
 
+      // ZIP 파일이 있으면 압축 해제하여 이미지 추출
+      let allImageFiles = [];
+      for (const file of Array.from(files)) {
+        if (file.name.toLowerCase().endsWith('.zip')) {
+          try {
+            showPhotoSuccess('ZIP 파일 압축 해제 중...');
+            const extracted = await extractImagesFromZip(file);
+            allImageFiles.push(...extracted);
+          } catch (e) { showPhotoError('ZIP 해제 실패: ' + e.message); return; }
+        } else {
+          allImageFiles.push(file);
+        }
+      }
+
       const remaining = 10 - currentPhotos.length;
-      const filesToProcess = Array.from(files).slice(0, remaining);
+      const filesToProcess = allImageFiles.slice(0, remaining);
       if (filesToProcess.length === 0) { showPhotoError('최대 10장까지 업로드할 수 있습니다.'); return; }
+      if (allImageFiles.length > remaining) {
+        showPhotoError('남은 슬롯 ' + remaining + '장 — ' + filesToProcess.length + '장만 업로드합니다.');
+      }
 
       showPhotoSuccess(filesToProcess.length + '장 업로드 중...');
 
