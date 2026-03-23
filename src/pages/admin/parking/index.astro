@@ -801,11 +801,21 @@ export const prerender = false;
 
       showPhotoSuccess(filesToProcess.length + '장 업로드 중...');
 
-      for (const file of filesToProcess) {
+      // 파일명을 미리 계산 (중복 방지)
+      const usedNums = currentPhotos.map(p => parseInt(p.name.replace('.webp', ''), 10)).filter(n => !isNaN(n));
+      const fileNames = [];
+      for (let i = 0; i < filesToProcess.length; i++) {
+        let next = 1;
+        while (usedNums.includes(next)) next++;
+        usedNums.push(next);
+        fileNames.push(String(next).padStart(2, '0') + '.webp');
+      }
+
+      for (let i = 0; i < filesToProcess.length; i++) {
+        const file = filesToProcess[i];
         try {
           const base64 = await convertToWebP(file);
-          const nextNum = getNextFileName();
-          const fileName = nextNum + '.webp';
+          const fileName = fileNames[i];
 
           const res = await fetch('/api/admin/parking-images/', {
             method: 'POST',
