@@ -1,7 +1,7 @@
 export const prerender = false;
 
 import type { APIRoute } from 'astro';
-import { getFile, saveFile, saveBinaryFile, deleteFile, listFiles } from '../../../utils/github';
+import { getFile, saveFile, saveBinaryFile, deleteFile, listFiles, deleteMultipleFiles, saveMultipleBinaryFiles } from '../../../utils/github';
 
 const PARKING_DATA_PATH = 'public/data/parking/서울특별시';
 const IMAGES_BASE_PATH = 'public/images/parking';
@@ -36,70 +36,65 @@ export const GET: APIRoute = async ({ url }) => {
   }
 };
 
-// POST: 이미지 업로드 (base64 WebP)
+// POST: 이미지 일괄 업로드 (한 커밋)
 export const POST: APIRoute = async ({ request }) => {
   try {
     const data = await request.json();
-    const { district, slug, fileName, base64Data, originalIndex } = data;
+    const { district, slug, files: uploadFiles, originalIndex } = data;
 
-    if (!district || !slug || !fileName || !base64Data) {
+    if (!district || !slug || !uploadFiles || !Array.isArray(uploadFiles) || uploadFiles.length === 0) {
       return json({ error: '필수 파라미터가 누락되었습니다.' }, 400);
     }
 
-    // 1. 이미지를 GitHub에 저장 (기존 파일이 있으면 sha 포함)
-    const imagePath = `${IMAGES_BASE_PATH}/${district}/${slug}/${fileName}`;
-    let existingSha: string | undefined;
-    try {
-      const dirPath = `${IMAGES_BASE_PATH}/${district}/${slug}`;
-      const files = await listFiles(dirPath);
-      const existing = files.find(f => f.name === fileName);
-      if (existing) {
-        existingSha = existing.sha;
-      }
-    } catch {
-      // 디렉토리가 없으면 새 파일
-    }
-    await saveBinaryFile(
-      imagePath,
-      base64Data,
-      `img: ${district} ${slug} 사진 ${existingSha ? '수정' : '추가'} (${fileName})`,
-      existingSha
+    const filesToSave = uploadFiles.map((f: { fileName: string; base64Data: string }) => ({
+      path: `${IMAGES_BASE_PATH}/${district}/${slug}/${f.fileName}`,
+      base64Content: f.base64Data,
+    }));
+
+    const fileNames = uploadFiles.map((f: { fileName: string }) => f.fileName);
+    await saveMultipleBinaryFiles(
+      filesToSave,
+      `img: ${district} ${slug} 사진 추가 (${fileNames.join(', ')})`
     );
 
-    // 2. 주차장 JSON에 images 배열 업데이트
+    // 주차장 JSON에 images 배열 업데이트
     if (originalIndex !== undefined) {
       await updateParkingImages(district, originalIndex, slug);
     }
 
-    return json({
-      success: true,
-      url: `/images/parking/${district}/${slug}/${fileName}`,
-    });
+    return json({ success: true, count: uploadFiles.length });
   } catch (e: any) {
     return json({ error: e.message }, 500);
   }
 };
 
-// DELETE: 이미지 삭제
+// DELETE: 이미지 일괄 삭제 (한 커밋)
 export const DELETE: APIRoute = async ({ request }) => {
   try {
     const data = await request.json();
-    const { district, slug, fileName, sha, originalIndex } = data;
+    const { district, slug, files: deleteFiles, originalIndex } = data;
 
-    if (!district || !slug || !fileName || !sha) {
+    if (!district || !slug || !deleteFiles || !Array.isArray(deleteFiles) || deleteFiles.length === 0) {
       return json({ error: '필수 파라미터가 누락되었습니다.' }, 400);
     }
 
-    // 1. GitHub에서 이미지 삭제
-    const imagePath = `${IMAGES_BASE_PATH}/${district}/${slug}/${fileName}`;
-    await deleteFile(imagePath, sha, `img: ${district} ${slug} 사진 삭제 (${fileName})`);
+    const pathsToDelete = deleteFiles.map((f: { fileName: string; sha: string }) => ({
+      path: `${IMAGES_BASE_PATH}/${district}/${slug}/${f.fileName}`,
+      sha: f.sha,
+    }));
 
-    // 2. 주차장 JSON에 images 배열 업데이트
+    const fileNames = deleteFiles.map((f: { fileName: string }) => f.fileName);
+    await deleteMultipleFiles(
+      pathsToDelete,
+      `img: ${district} ${slug} 사진 삭제 (${fileNames.join(', ')})`
+    );
+
+    // 주차장 JSON에 images 배열 업데이트
     if (originalIndex !== undefined) {
       await updateParkingImages(district, originalIndex, slug);
     }
 
-    return json({ success: true });
+    return json({ success: true, count: deleteFiles.length });
   } catch (e: any) {
     return json({ error: e.message }, 500);
   }

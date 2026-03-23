@@ -122,6 +122,11 @@ export const prerender = false;
     .photo-item .photo-delete{position:absolute;top:5px;right:5px;width:26px;height:26px;border-radius:50%;background:rgba(220,38,38,.9);color:white;border:none;cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity .15s}
     .photo-item:hover .photo-delete{opacity:1}
     .photo-item .photo-name{position:absolute;bottom:0;left:0;right:0;padding:3px 6px;background:rgba(0,0,0,.55);color:white;font-size:10px;text-align:center}
+    .photo-item .photo-checkbox{position:absolute;top:6px;left:6px;width:18px;height:18px;cursor:pointer;z-index:2;accent-color:#3b82f6}
+    .photo-bulk-actions{display:flex;align-items:center;gap:12px;margin-top:10px;padding:8px 0}
+    .btn-danger{background:#dc2626;color:white;border:none;border-radius:8px;padding:6px 14px;cursor:pointer;font-size:13px}
+    .btn-danger:hover{background:#b91c1c}
+    .btn-sm{font-size:12px;padding:5px 12px}
     .photo-msg{font-size:13px;margin-top:6px}
 
     /* ── Deploy Button ── */
@@ -296,6 +301,10 @@ export const prerender = false;
           <input type="file" id="photoFileInput" multiple style="display:none;" />
           <div class="msg msg-success photo-msg" id="photoSuccess"></div>
           <div class="msg msg-error photo-msg" id="photoError"></div>
+          <div class="photo-bulk-actions" id="bulkDeleteBtns" style="display:none;">
+            <label style="font-size:13px;color:#94a3b8;cursor:pointer;"><input type="checkbox" id="selectAllPhotos" /> 전체 선택</label>
+            <button class="btn btn-danger btn-sm" id="deleteSelectedBtn" style="display:none;">🗑 선택 삭제</button>
+          </div>
           <div class="photo-grid" id="photoGrid"></div>
         </div>
       </div>
@@ -721,18 +730,72 @@ export const prerender = false;
 
     function renderPhotos() {
       const grid = document.getElementById('photoGrid');
+      const bulkBtns = document.getElementById('bulkDeleteBtns');
+      const selectAll = document.getElementById('selectAllPhotos');
       if (currentPhotos.length === 0) {
         grid.innerHTML = '<div style="text-align:center;padding:24px;color:#94a3b8;font-size:13px;">등록된 사진이 없습니다.</div>';
+        bulkBtns.style.display = 'none';
         return;
       }
+      bulkBtns.style.display = 'flex';
+      selectAll.checked = false;
+      document.getElementById('deleteSelectedBtn').style.display = 'none';
       grid.innerHTML = currentPhotos.map((photo, i) =>
         '<div class="photo-item" data-index="' + i + '">' +
+          '<input type="checkbox" class="photo-checkbox" data-index="' + i + '" />' +
           '<img src="' + photo.url + '" alt="' + photo.name + '" loading="lazy" />' +
           '<button class="photo-delete" onclick="deletePhoto(' + i + ')" title="삭제">×</button>' +
           '<div class="photo-name">' + photo.name + '</div>' +
         '</div>'
       ).join('');
     }
+
+    // 전체 선택 체크박스
+    document.getElementById('selectAllPhotos').addEventListener('change', function() {
+      const checked = this.checked;
+      document.querySelectorAll('.photo-checkbox').forEach(cb => cb.checked = checked);
+      updateDeleteSelectedBtn();
+    });
+
+    document.addEventListener('change', function(e) {
+      if (e.target.classList.contains('photo-checkbox')) updateDeleteSelectedBtn();
+    });
+
+    function updateDeleteSelectedBtn() {
+      const checked = document.querySelectorAll('.photo-checkbox:checked');
+      const btn = document.getElementById('deleteSelectedBtn');
+      btn.style.display = checked.length > 0 ? 'inline-block' : 'none';
+      btn.textContent = '🗑 선택 삭제 (' + checked.length + '장)';
+    }
+
+    // 선택 삭제 (일괄)
+    document.getElementById('deleteSelectedBtn').addEventListener('click', async function() {
+      const checked = document.querySelectorAll('.photo-checkbox:checked');
+      if (checked.length === 0) return;
+      const count = checked.length;
+      if (!confirm(count + '장의 사진을 삭제하시겠습니까?')) return;
+
+      const { district, slug } = currentEditingParking;
+      const filesToDelete = [];
+      checked.forEach(cb => {
+        const idx = parseInt(cb.dataset.index);
+        const photo = currentPhotos[idx];
+        if (photo) filesToDelete.push({ fileName: photo.name, sha: photo.sha });
+      });
+
+      try {
+        showPhotoSuccess(count + '장 삭제 중...');
+        const res = await fetch('/api/admin/parking-images/', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ district, slug, files: filesToDelete }),
+        });
+        const result = await res.json();
+        if (!res.ok) throw new Error(result.error);
+        showPhotoSuccess(count + '장 삭제 완료!');
+        await loadPhotos();
+      } catch (e) { showPhotoError('삭제 실패: ' + e.message); }
+    });
 
     // 드래그 앤 드롭
     const dropZone = document.getElementById('photoDrop');
@@ -799,40 +862,40 @@ export const prerender = false;
         showPhotoError('남은 슬롯 ' + remaining + '장 — ' + filesToProcess.length + '장만 업로드합니다.');
       }
 
-      showPhotoSuccess(filesToProcess.length + '장 업로드 중...');
+      showPhotoSuccess(filesToProcess.length + '장 변환 중...');
 
+      // 모든 이미지를 먼저 변환
+      const convertedFiles = [];
       for (let i = 0; i < filesToProcess.length; i++) {
         const file = filesToProcess[i];
+        const baseName = file.name.replace(/\.[^.]+$/, '');
+        let fileName, base64;
         try {
-          // 원본 파일명 유지, 확장자만 .webp로 변경
-          const baseName = file.name.replace(/\.[^.]+$/, '');
-          let fileName, base64;
-
-          try {
-            base64 = await convertToWebP(file);
-            fileName = baseName + '.webp';
-          } catch (convErr) {
-            // WebP 변환 실패 시 원본 그대로 업로드
-            console.warn('WebP 변환 실패, 원본 업로드:', convErr);
-            base64 = await fileToBase64(file);
-            fileName = file.name;
-          }
-
-          // 같은 이름 파일 있으면 덮어쓰기 (SHA 조회)
-          const res = await fetch('/api/admin/parking-images/', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ district, slug, fileName, base64Data: base64 }),
-          });
-
-          const result = await res.json();
-          if (!res.ok) throw new Error(result.error);
-          showPhotoSuccess(fileName + ' 업로드 완료! (' + (i + 1) + '/' + filesToProcess.length + ')');
-        } catch (e) { showPhotoError('업로드 실패: ' + e.message); }
+          base64 = await convertToWebP(file);
+          fileName = baseName + '.webp';
+        } catch (convErr) {
+          console.warn('WebP 변환 실패, 원본 업로드:', convErr);
+          base64 = await fileToBase64(file);
+          fileName = file.name;
+        }
+        convertedFiles.push({ fileName, base64Data: base64 });
+        showPhotoSuccess((i + 1) + '/' + filesToProcess.length + '장 변환 완료...');
       }
 
+      // 한 번에 업로드 (1커밋)
+      try {
+        showPhotoSuccess(convertedFiles.length + '장 업로드 중... (한 번에 처리)');
+        const res = await fetch('/api/admin/parking-images/', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ district, slug, files: convertedFiles }),
+        });
+        const result = await res.json();
+        if (!res.ok) throw new Error(result.error);
+      } catch (e) { showPhotoError('업로드 실패: ' + e.message); return; }
+
       await loadPhotos();
-      showPhotoSuccess('모든 사진 업로드 완료!');
+      showPhotoSuccess(convertedFiles.length + '장 업로드 완료!');
     }
 
     function fileToBase64(file) {
@@ -877,7 +940,7 @@ export const prerender = false;
         const res = await fetch('/api/admin/parking-images/', {
           method: 'DELETE',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ district, slug, fileName: photo.name, sha: photo.sha }),
+          body: JSON.stringify({ district, slug, files: [{ fileName: photo.name, sha: photo.sha }] }),
         });
         const result = await res.json();
         if (!res.ok) throw new Error(result.error);

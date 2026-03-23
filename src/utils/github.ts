@@ -139,6 +139,115 @@ export async function saveBinaryFile(
   }
 }
 
+/** 여러 파일을 한 커밋으로 삭제 (Git Data API) */
+export async function deleteMultipleFiles(
+  paths: { path: string; sha: string }[],
+  message: string
+): Promise<void> {
+  if (paths.length === 0) return;
+  if (paths.length === 1) {
+    return deleteFile(paths[0].path, paths[0].sha, message);
+  }
+
+  // 1. 현재 브랜치 ref → commit SHA
+  const refRes = await fetch(`${API_BASE}/git/ref/heads/${GITHUB_BRANCH}`, { headers: headers() });
+  if (!refRes.ok) throw new Error(`GitHub ref 조회 실패: ${refRes.status}`);
+  const commitSha = (await refRes.json()).object.sha;
+
+  // 2. commit → tree SHA
+  const commitRes = await fetch(`${API_BASE}/git/commits/${commitSha}`, { headers: headers() });
+  if (!commitRes.ok) throw new Error(`GitHub commit 조회 실패: ${commitRes.status}`);
+  const treeSha = (await commitRes.json()).tree.sha;
+
+  // 3. 새 tree 생성 (sha: null = 파일 삭제)
+  const treeRes = await fetch(`${API_BASE}/git/trees`, {
+    method: 'POST',
+    headers: headers(),
+    body: JSON.stringify({
+      base_tree: treeSha,
+      tree: paths.map(f => ({ path: f.path, mode: '100644', type: 'blob', sha: null })),
+    }),
+  });
+  if (!treeRes.ok) throw new Error(`GitHub tree 생성 실패: ${treeRes.status}`);
+  const newTreeSha = (await treeRes.json()).sha;
+
+  // 4. 새 commit 생성
+  const newCommitRes = await fetch(`${API_BASE}/git/commits`, {
+    method: 'POST',
+    headers: headers(),
+    body: JSON.stringify({ message, tree: newTreeSha, parents: [commitSha] }),
+  });
+  if (!newCommitRes.ok) throw new Error(`GitHub commit 생성 실패: ${newCommitRes.status}`);
+  const newCommitSha = (await newCommitRes.json()).sha;
+
+  // 5. 브랜치 ref 업데이트
+  const updateRes = await fetch(`${API_BASE}/git/refs/heads/${GITHUB_BRANCH}`, {
+    method: 'PATCH',
+    headers: headers(),
+    body: JSON.stringify({ sha: newCommitSha }),
+  });
+  if (!updateRes.ok) throw new Error(`GitHub ref 업데이트 실패: ${updateRes.status}`);
+}
+
+/** 여러 바이너리 파일을 한 커밋으로 저장 (Git Data API) */
+export async function saveMultipleBinaryFiles(
+  files: { path: string; base64Content: string }[],
+  message: string
+): Promise<void> {
+  if (files.length === 0) return;
+  if (files.length === 1) {
+    return saveBinaryFile(files[0].path, files[0].base64Content, message);
+  }
+
+  // 1. 현재 브랜치 ref → commit SHA
+  const refRes = await fetch(`${API_BASE}/git/ref/heads/${GITHUB_BRANCH}`, { headers: headers() });
+  if (!refRes.ok) throw new Error(`GitHub ref 조회 실패: ${refRes.status}`);
+  const commitSha = (await refRes.json()).object.sha;
+
+  // 2. commit → tree SHA
+  const commitRes = await fetch(`${API_BASE}/git/commits/${commitSha}`, { headers: headers() });
+  if (!commitRes.ok) throw new Error(`GitHub commit 조회 실패: ${commitRes.status}`);
+  const treeSha = (await commitRes.json()).tree.sha;
+
+  // 3. 각 파일 blob 생성
+  const treeEntries = [];
+  for (const file of files) {
+    const blobRes = await fetch(`${API_BASE}/git/blobs`, {
+      method: 'POST',
+      headers: headers(),
+      body: JSON.stringify({ content: file.base64Content, encoding: 'base64' }),
+    });
+    if (!blobRes.ok) throw new Error(`GitHub blob 생성 실패: ${blobRes.status}`);
+    treeEntries.push({ path: file.path, mode: '100644', type: 'blob', sha: (await blobRes.json()).sha });
+  }
+
+  // 4. 새 tree 생성
+  const treeRes = await fetch(`${API_BASE}/git/trees`, {
+    method: 'POST',
+    headers: headers(),
+    body: JSON.stringify({ base_tree: treeSha, tree: treeEntries }),
+  });
+  if (!treeRes.ok) throw new Error(`GitHub tree 생성 실패: ${treeRes.status}`);
+  const newTreeSha = (await treeRes.json()).sha;
+
+  // 5. 새 commit 생성
+  const newCommitRes = await fetch(`${API_BASE}/git/commits`, {
+    method: 'POST',
+    headers: headers(),
+    body: JSON.stringify({ message, tree: newTreeSha, parents: [commitSha] }),
+  });
+  if (!newCommitRes.ok) throw new Error(`GitHub commit 생성 실패: ${newCommitRes.status}`);
+  const newCommitSha = (await newCommitRes.json()).sha;
+
+  // 6. 브랜치 ref 업데이트
+  const updateRes = await fetch(`${API_BASE}/git/refs/heads/${GITHUB_BRANCH}`, {
+    method: 'PATCH',
+    headers: headers(),
+    body: JSON.stringify({ sha: newCommitSha }),
+  });
+  if (!updateRes.ok) throw new Error(`GitHub ref 업데이트 실패: ${updateRes.status}`);
+}
+
 function encodeBase64(str: string): string {
   return btoa(unescape(encodeURIComponent(str)));
 }
